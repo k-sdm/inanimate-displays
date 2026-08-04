@@ -24,8 +24,15 @@ file, or serve the directory.
 
 **Adafruit 15×7 CharliePlex FeatherWing** — 2020 packages set at 45°, so each
 LED presents its 2.83 mm diagonal in both axes. Stock is 15 × 7 on a 2.80 mm
-pitch inside a 51.0 × 23.0 mm board. Columns, rows and pitch are all editable;
-the board keeps the stock edge margins and grows around the matrix.
+pitch inside a 51.0 × 23.0 mm board, which puts the diamonds just touching.
+Columns, rows and pitch are all editable; the board keeps the stock edge margins
+and grows around the matrix.
+
+Drawn as physical parts rather than lit cells: every package body is visible
+whether or not it is powered, with a smaller rounded lens inside it that carries
+the light. Unpowered lenses still catch ambient light, so they read as pale
+grey — the "unlit dots" toggle controls them. Lit LEDs saturate to white at the
+centre and bloom harder than a VFD phosphor.
 
 **Luckylight KWM-R30881XBB** — 1.2" 8 × 8 blocks, 31.7 mm square, 3.0 mm dots on
 a 4.0 mm pitch. Tile as many as you like across and down. Square or round dots.
