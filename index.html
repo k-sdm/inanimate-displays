@@ -243,7 +243,9 @@ const DISPLAYS = [
     kind: "charlie", id: "charliewing", part: "Custom Charlieplexed LED Matrix",
     blurb: "LED &middot; 15 x 7 &middot; chip LEDs at 45&deg;",
     cols: 15, rows: 7,
-    font: "f3x5", scale: 1,      // seven rows only clears the 3x5
+    // Native font is the 5x8, as it was for every panel here, but seven
+    // rows cannot hold an eight-row glyph — so this one defaults to the 3x5.
+    nativeFont: "f5x8", font: "f3x5", scale: 1,
     pitch: 2.80,
     /* A rectangular chip LED laid diagonally. Body, then the two solder
        terminals at each end, then the emitting window in the middle. */
@@ -270,7 +272,7 @@ const DISPLAYS = [
     kind: "blocks", id: "ledblocks", part: "Luckylight KWM-R30881XBB",
     blurb: "LED &middot; 1.2\" 8x8 blocks &middot; tileable",
     blocksX: 2, blocksY: 1,
-    font: "f5x8", scale: 1,
+    nativeFont: "f5x8", font: "f5x8", scale: 1,
     block: { size: 31.70, inset: 0.35, pitch: 4.00 },
     led: { w: 3.00, h: 3.00 },
     carrier: 3.00,
@@ -289,7 +291,7 @@ const DISPLAYS = [
     kind: "lcd", id: "lcd12864", part: "Futurlec BLUE128X64LCD",
     blurb: "LCD &middot; 128 x 64 &middot; white on blue",
     cols: 128, rows: 64,
-    font: "f5x8", scale: 2,
+    nativeFont: "f5x8", font: "f5x8", scale: 1,
     board: { w: 93.00, h: 70.00 },
     va: { w: 62.00, h: 33.00 },
     dot: { w: 0.42, h: 0.48 },
@@ -1259,7 +1261,9 @@ function buildConfig() {
       seg.className = "seg";
       for (const [val, name] of f.choices) {
         const b = document.createElement("button");
-        b.textContent = name;
+        const native = f.key === "font" && val === D.nativeFont;
+        b.textContent = native ? name + " *" : name;
+        if (native) b.title = "The font this panel rendered before fonts were selectable";
         b.setAttribute("aria-pressed", D[f.key] === val);
         b.addEventListener("click", () => {
           D[f.key] = val;

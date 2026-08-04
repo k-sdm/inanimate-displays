@@ -121,9 +121,12 @@ fonts of those sizes without being transcriptions of either. Three-pixel-wide
 capitals have inherent collisions — M against N in particular — which is a
 property of the size, not a bug to fix.
 
+Every panel here originally rendered 5 × 8, and that stays each one's default
+and is marked `*` in the picker. The CharliePlex is the exception: at seven
+rows it physically cannot hold an eight-row glyph, so it defaults to 3 × 5.
+
 The spec panel reports how many characters and lines actually fit, and warns
-when a font is too tall for the panel (5 × 8 on the seven-row CharliePlex, for
-instance).
+when a font is too tall for the panel.
 
 ## Filters
 
