@@ -29,10 +29,8 @@
   .picker button[aria-pressed="true"] b { color: #8fffd6; }
 
   .stage { margin-bottom: 10px; padding: 34px 30px; background: #0b0f0d; border: 1px solid var(--line); border-radius: 10px; }
-  .stage svg { display: block; width: 100%; height: auto; }
+  .stage svg { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: none; }
   .scaler { margin: 0 auto; }
-  #hitLayer rect { cursor: crosshair; }
-  #hitLayer { touch-action: none; }
   .hint { color: var(--dim); font-size: 11px; margin: 0 0 20px; }
 
   .controls { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; align-items: start; }
@@ -93,7 +91,7 @@
 
   <header>
     <h1>Inanimate Displays</h1>
-    <div class="sub">Character VFDs and LED matrices, drawn to scale from their datasheets. Every module shares one mm-per-pixel, so sizes compare directly.</div>
+    <div class="sub">Character VFDs, LED matrices and graphic LCDs, drawn to scale from their datasheets. Every module shares one mm-per-pixel, so sizes compare directly.</div>
   </header>
 
   <div class="picker" id="picker"></div>
@@ -134,7 +132,6 @@
         <div class="toggles">
           <label><input type="checkbox" id="tDims" /> Dimensions</label>
           <label><input type="checkbox" id="tGrid" checked /> Unlit dots</label>
-          <label><input type="checkbox" id="tCursor" checked /> Cursor</label>
           <label><input type="checkbox" id="tBloom" checked /> Bloom</label>
           <label><input type="checkbox" id="tScale" checked /> True relative size</label>
         </div>
@@ -167,16 +164,19 @@
 "use strict";
 
 const SQRT2 = Math.SQRT2;
+/** Bounding size of a w x h rectangle rotated 45 degrees. */
+const diag45 = (w, h) => (w + h) / SQRT2;
 
 /* ================================================================== *
  * Displays
  *
- * Three kinds, all reduced to the same thing: a logical pixel grid plus
+ * Four kinds, all reduced to the same thing: a logical pixel grid plus
  * a function saying where each pixel sits on the board in millimetres.
  *
  *   vfd     — character module, pixels grouped into 5x8 cells with gaps
- *   charlie — uniform LED grid, square packages rotated 45 degrees
+ *   charlie — discrete chip LEDs on a uniform grid, laid at 45 degrees
  *   blocks  — tiled 8x8 modules, uniform inside a block, seam between
+ *   lcd     — graphic LCD, uniform grid of pixels over a backlight
  * ================================================================== */
 const DISPLAYS = [
   {
@@ -249,25 +249,29 @@ const DISPLAYS = [
     ],
   },
   {
-    kind: "charlie", id: "charliewing", part: "Adafruit 15x7 CharliePlex FeatherWing",
-    blurb: "LED &middot; 15 x 7 &middot; 2020 at 45&deg;",
+    kind: "charlie", id: "charliewing", part: "Custom Charlieplexed LED Matrix",
+    blurb: "LED &middot; 15 x 7 &middot; chip LEDs at 45&deg;",
     cols: 15, rows: 7,
     pitch: 2.80,
-    pkg: { w: 2.00, h: 2.00, r: 0.42 },  // 2020 body, rotated 45 degrees
-    led: { w: 1.50, h: 1.50, r: 0.38 },  // emitting lens inside the body
-    margin: { x: 4.485, y: 1.685 },      // makes the stock 15 x 7 come out at 51.0 x 23.0
+    /* A rectangular chip LED laid diagonally. Body, then the two solder
+       terminals at each end, then the emitting window in the middle. */
+    pkg:  { w: 2.00, h: 1.25, r: 0.12 },
+    term: { w: 0.42, r: 0.06 },
+    led:  { w: 0.95, h: 0.80, r: 0.10 },
+    rot: 45,
+    stockBoard: { w: 51.00, h: 23.00 },   // Adafruit CharlieWing, for the margins
     hole: { d: 2.50, inset: 2.60 },
-    pcb: "#0f1113",                      // CharlieWings ship on black soldermask
-    pkgFill: "#171c24",                  // unpowered package body
-    coreMix: 0.80,                       // LEDs saturate to white at the centre
+    pcb: "#0f1113",
+    pkgFill: "#12161c", termFill: "#5c6674", dieFill: "#9fb0c6",
+    coreMix: 0.80,
     bloomGain: 1.35,
     emitter: "#1f7dff",
     colourNote: "InGaN blue, ~470 nm",
     notes: [
-      "PCB is 51.0 x 23.0 x 3.0 mm per Adafruit. That is the only dimension they publish for this board.",
-      "LED pitch is not published. 2.80 mm is derived from fitting 15 columns of 45-degree 2020 packages (2.83 mm across the diagonal) inside the 51 mm board, and it reproduces 51.0 x 23.0 exactly at the stock 15 x 7. At that pitch the diamonds very nearly touch, which is what the real board looks like.",
-      "The 1.50 mm lens inside the 2.00 mm body is eyeballed from photographs, not a package drawing.",
-      "Changing resolution or pitch keeps the stock edge margins and grows the board around the matrix. Past 15 x 7 this is no longer a real FeatherWing.",
+      "Modelled on the Adafruit 15x7 CharliePlex FeatherWing, whose PCB is 51.0 x 23.0 x 3.0 mm. That is the only dimension Adafruit publishes for it.",
+      "LED pitch is not published. 2.80 mm is derived from fitting 15 columns inside the 51 mm board, and it reproduces 51.0 x 23.0 exactly at 15 x 7.",
+      "The package is a rectangular chip LED laid at 45 degrees, not a square. Body 2.00 x 1.25, terminals and emitting window sized from photographs — there is no package drawing behind those numbers.",
+      "Changing resolution or pitch keeps the stock edge margins and grows the board around the matrix. Past 15 x 7 this is no longer a FeatherWing.",
     ],
   },
   {
@@ -276,7 +280,7 @@ const DISPLAYS = [
     blocksX: 2, blocksY: 1,
     block: { size: 31.70, inset: 0.35, pitch: 4.00 },
     led: { w: 3.00, h: 3.00 },
-    carrier: 3.00,                      // host PCB margin around the tiled blocks
+    carrier: 3.00,
     hole: { d: 3.00, inset: 1.60 },
     shape: "square",
     emitter: "#1f7dff",
@@ -288,6 +292,29 @@ const DISPLAYS = [
       "Datasheet dots are square. The round option is the same pitch with a circular lens, which is how most other 8x8 modules this size are built.",
     ],
   },
+  {
+    kind: "lcd", id: "lcd12864", part: "Futurlec BLUE128X64LCD",
+    blurb: "LCD &middot; 128 x 64 &middot; white on blue",
+    cols: 128, rows: 64,
+    board: { w: 93.00, h: 70.00 },
+    va: { w: 62.00, h: 33.00 },
+    dot: { w: 0.42, h: 0.48 },
+    hole: { d: 2.50, inset: 2.50 },
+    pcb: "#1b2028",
+    backlight: "#1746cf",
+    emitter: "#ffffff",
+    coreMix: 0.10,
+    bloomGain: 0.30,
+    bloomPasses: 1,
+    colourNote: "White pixels on a blue LED backlight",
+    labels: { boardW: "93.0", boardH: "70.0", glassW: "62.0", glassH: "33.0" },
+    notes: [
+      "Module 93.0 x 70.0 x 12.1, viewing area 62.0 x 33.0, dot 0.42 x 0.48 — all four straight off the Futurlec table.",
+      "That table's \"Dot Pitch 0.52 x 0.52\" cannot be right: 128 x 0.52 is 66.56 mm, which will not fit a 62.0 mm viewing area. Pitch here is derived from the viewing area instead, giving 0.485 x 0.516 — close to the 0.48 x 0.52 this module family normally quotes.",
+      "The datasheet never says where the viewing area sits on the module, so it is drawn centred. On a real part it usually sits slightly high, with the connector along the bottom.",
+      "Negative-mode blue: the backlight is the background and pixels switch white. Unlit pixels are the faint grid you can see on a real panel, not black.",
+    ],
+  },
 ];
 
 /* Editable fields per display kind. */
@@ -295,8 +322,6 @@ const CONFIG = {
   charlie: [
     { key: "cols",  label: "Columns", min: 1, max: 64, step: 1 },
     { key: "rows",  label: "Rows",    min: 1, max: 32, step: 1 },
-    // Stock 2.80 already has the 2.83 diagonals just touching, so the floor
-    // has to sit below that rather than at it.
     { key: "pitch", label: "Pitch",   min: 1.50, max: 12, step: 0.05, unit: "mm" },
   ],
   blocks: [
@@ -306,6 +331,17 @@ const CONFIG = {
   ],
 };
 
+/* Edge margins come from the stock board, so the reference configuration
+   reproduces its real outline and everything else grows around the matrix. */
+for (const D of DISPLAYS) {
+  if (D.kind !== "charlie") continue;
+  const bbox = diag45(D.pkg.w, D.pkg.h);
+  D.margin = {
+    x: (D.stockBoard.w - ((D.cols - 1) * D.pitch + bbox)) / 2,
+    y: (D.stockBoard.h - ((D.rows - 1) * D.pitch + bbox)) / 2,
+  };
+}
+
 /* ================================================================== *
  * Noritake's five standard acrylic filters.
  * noritake-elec.com/products/value-added-services
@@ -313,8 +349,8 @@ const CONFIG = {
  * No transmission curves are published, so each is modelled as a
  * transmission colour multiplied into the emitter plus a broadband
  * loss — the hue shift and the contrast gain, not a photometric
- * prediction. They are sold for VFDs; applied to the LED matrices too,
- * where the same physics holds for any acrylic contrast filter.
+ * prediction. Sold for VFDs; applied to the other panels too, where the
+ * same physics holds for any acrylic contrast filter.
  * ================================================================== */
 const FILTERS = [
   { id: "none",  name: "None",  code: "",           tint: "#ffffff", t: 1.00, glass: null,      glassOp: 0 },
@@ -448,6 +484,7 @@ const el = (name, attrs) => {
 };
 const n = (v) => Math.round(v * 1000) / 1000;
 const round2 = (v) => (Math.round(v * 100) / 100).toString();
+const round3 = (v) => (Math.round(v * 1000) / 1000).toString();
 
 const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const rgb2hex = (c) => "#" + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
@@ -467,39 +504,52 @@ function geom(D) {
     const charPitchX = D.charPitchX ?? (D.active.w - D.cell.w) / (D.cols - 1);
     const linePitchY = D.linePitchY ?? (D.active.h - D.cell.h) / (D.rows - 1);
     return {
-      board: D.board, active: D.active, glass: D.glass, window: D.window, hole: D.hole,
+      kind: D.kind, board: D.board, active: D.active, glass: D.glass, glassFill: "#0b100e",
+      window: D.window, windowFill: "#050908", hole: D.hole,
       pxCols: D.cols * 5, pxRows: D.rows * 8,
-      lens: { w: D.dot.w, h: D.dot.h, r: 0, rot: 0 }, pkg: null,
-      dotW: D.dot.w, dotH: D.dot.h,
-      hitW: D.pitch.x, hitH: D.pitch.y, bloomUnit: D.pitch.y,
+      lens: { w: D.dot.w, h: D.dot.h, r: 0, rot: 0 },
+      hitW: D.pitch.x, hitH: D.pitch.y, bloomUnit: D.pitch.y, uniform: false,
       charPitchX, linePitchY,
-      centre(px, py) {
-        return {
-          cx: D.active.x + Math.floor(px / 5) * charPitchX + (px % 5) * D.pitch.x + D.dot.w / 2,
-          cy: D.active.y + Math.floor(py / 8) * linePitchY + (py % 8) * D.pitch.y + D.dot.h / 2,
-        };
-      },
+      centre: (px, py) => ({
+        cx: D.active.x + Math.floor(px / 5) * charPitchX + (px % 5) * D.pitch.x + D.dot.w / 2,
+        cy: D.active.y + Math.floor(py / 8) * linePitchY + (py % 8) * D.pitch.y + D.dot.h / 2,
+      }),
     };
   }
 
   if (D.kind === "charlie") {
-    // A square rotated 45 degrees occupies its diagonal in both axes, so the
-    // package body — not the lens — sets how much room the matrix needs.
-    const diag = D.pkg.w * SQRT2;
-    const spanW = (D.cols - 1) * D.pitch + diag;
-    const spanH = (D.rows - 1) * D.pitch + diag;
+    // Laid at 45 degrees, so a package needs its rotated bounding box.
+    const bbox = diag45(D.pkg.w, D.pkg.h);
+    const spanW = (D.cols - 1) * D.pitch + bbox;
+    const spanH = (D.rows - 1) * D.pitch + bbox;
     const board = { w: spanW + D.margin.x * 2, h: spanH + D.margin.y * 2 };
     const active = { x: D.margin.x, y: D.margin.y, w: spanW, h: spanH };
+    const first = { x: active.x + bbox / 2, y: active.y + bbox / 2 };
     return {
-      board, active, glass: null, window: 0, hole: D.hole,
+      kind: D.kind, board, active, glass: null, hole: D.hole,
       pxCols: D.cols, pxRows: D.rows,
-      lens: { w: D.led.w, h: D.led.h, r: D.led.r, rot: 45 },
-      pkg: { w: D.pkg.w, h: D.pkg.h, r: D.pkg.r, rot: 45 },
-      dotW: D.led.w, dotH: D.led.h,
+      lens: { w: D.led.w, h: D.led.h, r: D.led.r, rot: D.rot },
+      pkg: D.pkg, term: D.term, rot: D.rot, bbox,
       hitW: D.pitch, hitH: D.pitch, bloomUnit: D.pitch,
-      centre(px, py) {
-        return { cx: active.x + diag / 2 + px * D.pitch, cy: active.y + diag / 2 + py * D.pitch };
-      },
+      uniform: true, pitchX: D.pitch, pitchY: D.pitch, first,
+      centre: (px, py) => ({ cx: first.x + px * D.pitch, cy: first.y + py * D.pitch }),
+    };
+  }
+
+  if (D.kind === "lcd") {
+    // The quoted pitch contradicts the quoted viewing area, so derive it.
+    const pitchX = (D.va.w - D.dot.w) / (D.cols - 1);
+    const pitchY = (D.va.h - D.dot.h) / (D.rows - 1);
+    const glass = { x: (D.board.w - D.va.w) / 2, y: (D.board.h - D.va.h) / 2, w: D.va.w, h: D.va.h };
+    const first = { x: glass.x + D.dot.w / 2, y: glass.y + D.dot.h / 2 };
+    return {
+      kind: D.kind, board: D.board, active: { x: glass.x, y: glass.y, w: D.va.w, h: D.va.h },
+      glass, glassFill: D.backlight, window: 0, hole: D.hole,
+      pxCols: D.cols, pxRows: D.rows,
+      lens: { w: D.dot.w, h: D.dot.h, r: 0, rot: 0 },
+      hitW: pitchX, hitH: pitchY, bloomUnit: pitchY,
+      uniform: true, pitchX, pitchY, first,
+      centre: (px, py) => ({ cx: first.x + px * pitchX, cy: first.y + py * pitchY }),
     };
   }
 
@@ -517,18 +567,15 @@ function geom(D) {
       blockRects.push({ x: D.carrier + bx * B.size, y: D.carrier + by * B.size, w: B.size, h: B.size });
 
   return {
-    board, active, glass: null, window: 0, hole: D.hole, blockRects,
+    kind: D.kind, board, active, glass: null, hole: D.hole, blockRects,
     pxCols: D.blocksX * 8, pxRows: D.blocksY * 8,
     // A rect with rx = w/2 is a circle, so round and square share one path.
-    lens: { w: D.led.w, h: D.led.h, r: D.shape === "circle" ? D.led.w / 2 : 0, rot: 0 }, pkg: null,
-    dotW: D.led.w, dotH: D.led.h,
-    hitW: B.pitch, hitH: B.pitch, bloomUnit: B.pitch,
-    centre(px, py) {
-      return {
-        cx: D.carrier + Math.floor(px / 8) * B.size + B.inset + (px % 8) * B.pitch + D.led.w / 2,
-        cy: D.carrier + Math.floor(py / 8) * B.size + B.inset + (py % 8) * B.pitch + D.led.h / 2,
-      };
-    },
+    lens: { w: D.led.w, h: D.led.h, r: D.shape === "circle" ? D.led.w / 2 : 0, rot: 0 },
+    hitW: B.pitch, hitH: B.pitch, bloomUnit: B.pitch, uniform: false,
+    centre: (px, py) => ({
+      cx: D.carrier + Math.floor(px / 8) * B.size + B.inset + (px % 8) * B.pitch + D.led.w / 2,
+      cy: D.carrier + Math.floor(py / 8) * B.size + B.inset + (py % 8) * B.pitch + D.led.h / 2,
+    }),
   };
 }
 
@@ -545,8 +592,7 @@ const state = {
   filter: FILTERS[0],
   lines: ["", ""],
   brightness: 1,
-  dims: false, grid: true, cursor: true, bloom: true, trueScale: true,
-  focusLine: 0, caret: 0,
+  dims: false, grid: true, bloom: true, trueScale: true,
   /** Per-module pixel overrides: displayId -> Map("py:px" -> boolean). */
   pixels: {},
   painting: false, paintValue: true,
@@ -556,7 +602,6 @@ const state = {
 const pix = () => (state.pixels[state.display.id] ||= new Map());
 const pkey = (px, py) => `${py}:${px}`;
 
-/** Widest board across every module at its current configuration. */
 function widest() {
   return Math.max(...DISPLAYS.map((d) => {
     const g = geom(d);
@@ -573,7 +618,6 @@ function palette() {
   };
 }
 
-/** How many characters fit per line on a given display. */
 const capacityFor = (D, G) => (D.kind === "vfd" ? D.cols : Math.max(0, Math.floor((G.pxCols + 1) / 6)));
 const capacity = () => capacityFor(state.display, state.G);
 
@@ -594,6 +638,45 @@ function baseBit(px, py) {
 }
 
 /* ================================================================== *
+ * Shapes
+ * ================================================================== */
+/**
+ * One shape centred on (cx, cy). Everything is a <rect> with a corner
+ * radius — rx = w/2 gives a circle, so round dots, square dots, LED
+ * emitting windows and rotated chip packages all take the same path.
+ */
+function shapeNode(cx, cy, s) {
+  const node = el("rect", { x: n(cx - s.w / 2), y: n(cy - s.h / 2), width: n(s.w), height: n(s.h) });
+  if (s.r) { node.setAttribute("rx", n(s.r)); node.setAttribute("ry", n(s.r)); }
+  if (s.rot) node.setAttribute("transform", `rotate(${s.rot} ${n(cx)} ${n(cy)})`);
+  return node;
+}
+
+/** A whole chip LED: dark body, a metal terminal at each end, pale die. */
+function packageNode(D, cx, cy) {
+  const g = el("g", { transform: `rotate(${D.rot} ${n(cx)} ${n(cy)})` });
+  const { w, h, r } = D.pkg, tw = D.term.w;
+  g.appendChild(el("rect", { x: n(cx - w / 2), y: n(cy - h / 2), width: n(w), height: n(h), rx: n(r), ry: n(r), fill: D.pkgFill }));
+  for (const sx of [-1, 1])
+    g.appendChild(el("rect", {
+      x: n(cx + sx * (w / 2) - (sx > 0 ? tw : 0)), y: n(cy - h / 2),
+      width: n(tw), height: n(h), rx: n(D.term.r), ry: n(D.term.r), fill: D.termFill,
+    }));
+  g.appendChild(el("rect", {
+    x: n(cx - D.led.w / 2), y: n(cy - D.led.h / 2), width: n(D.led.w), height: n(D.led.h),
+    rx: n(D.led.r), ry: n(D.led.r), fill: D.dieFill, "fill-opacity": 0.45,
+  }));
+  return g;
+}
+
+/** The emitting area of the dot at logical (px, py). */
+function dotNode(px, py) {
+  const G = state.G;
+  const { cx, cy } = G.centre(px, py);
+  return shapeNode(cx, cy, G.lens);
+}
+
+/* ================================================================== *
  * Static scaffolding — flat fills only, no strokes and no gradients
  * ================================================================== */
 function buildStatic() {
@@ -602,7 +685,7 @@ function buildStatic() {
   const PAD = padFor(G);
 
   svg.textContent = "";
-  svg.setAttribute("viewBox", `${-PAD} ${-PAD} ${n(G.board.w + PAD * 2)} ${n(G.board.h + PAD * 2)}`);
+  svg.setAttribute("viewBox", `${n(-PAD)} ${n(-PAD)} ${n(G.board.w + PAD * 2)} ${n(G.board.h + PAD * 2)}`);
   scaler.style.width = state.trueScale ? `${((G.board.w + PAD * 2) / widest()) * 100}%` : "100%";
 
   const defs = el("defs");
@@ -611,22 +694,22 @@ function buildStatic() {
   defs.appendChild(blur("fWash", G.bloomUnit * 3.70));
   svg.appendChild(defs);
 
-  // PCB
+  // PCB / module body
   svg.appendChild(el("rect", { x: 0, y: 0, width: n(G.board.w), height: n(G.board.h), fill: D.pcb ?? "#1a211e" }));
 
-  // mounting holes
   if (G.hole)
     for (const cx of [G.hole.inset, G.board.w - G.hole.inset])
       for (const cy of [G.hole.inset, G.board.h - G.hole.inset])
         svg.appendChild(el("circle", { cx: n(cx), cy: n(cy), r: G.hole.d / 2, fill: "#0a0c0b" }));
 
-  // VFD glass + phosphor window
+  // VFD glass and phosphor window, or the LCD's backlit viewing area
   if (G.glass) {
-    svg.appendChild(el("rect", { x: G.glass.x, y: G.glass.y, width: G.glass.w, height: G.glass.h, fill: "#0b100e" }));
-    svg.appendChild(el("rect", {
-      x: G.glass.x + G.window, y: G.glass.y + G.window,
-      width: G.glass.w - G.window * 2, height: G.glass.h - G.window * 2, fill: "#050908",
-    }));
+    svg.appendChild(el("rect", { x: n(G.glass.x), y: n(G.glass.y), width: n(G.glass.w), height: n(G.glass.h), fill: G.glassFill }));
+    if (G.window)
+      svg.appendChild(el("rect", {
+        x: n(G.glass.x + G.window), y: n(G.glass.y + G.window),
+        width: n(G.glass.w - G.window * 2), height: n(G.glass.h - G.window * 2), fill: G.windowFill,
+      }));
   }
 
   // LED block bodies — the seam between tiles is real, so it is drawn
@@ -641,74 +724,54 @@ function buildStatic() {
   }
 
   svg.appendChild(el("g", { id: "washLayer" }));
-  const pkgs = buildPackages(D);
-  if (pkgs) svg.appendChild(pkgs);
-  svg.appendChild(buildGrid(P));
+  if (G.pkg) svg.appendChild(buildPackages(D, G, defs));
+  svg.appendChild(buildGrid(P, G, defs));
   svg.appendChild(el("g", { id: "bloomWide" }));
   svg.appendChild(el("g", { id: "bloomTight" }));
   svg.appendChild(el("g", { id: "litLayer" }));
   svg.appendChild(el("g", { id: "dimLayer" }));
-  svg.appendChild(buildHitLayer());
 }
 
 /**
- * One shape centred on (cx, cy). Everything is a <rect> with a corner
- * radius — rx = w/2 gives a circle, so round dots, square dots, rounded
- * LED lenses and 45-degree packages all take the same path.
+ * Uniform-pitch panels tile one dot instead of emitting thousands of
+ * nodes — a 128 x 64 LCD is 8192 pixels, which is not worth drawing
+ * individually just to sit there unlit.
  */
-function shapeNode(cx, cy, s) {
-  const node = el("rect", {
-    x: n(cx - s.w / 2), y: n(cy - s.h / 2), width: n(s.w), height: n(s.h),
+function tiled(id, defs, G, build) {
+  const pat = el("pattern", {
+    id, patternUnits: "userSpaceOnUse",
+    x: n(G.first.x - G.pitchX / 2), y: n(G.first.y - G.pitchY / 2),
+    width: n(G.pitchX), height: n(G.pitchY),
   });
-  if (s.r) { node.setAttribute("rx", n(s.r)); node.setAttribute("ry", n(s.r)); }
-  if (s.rot) node.setAttribute("transform", `rotate(${s.rot} ${n(cx)} ${n(cy)})`);
-  return node;
+  pat.appendChild(build(G.pitchX / 2, G.pitchY / 2));
+  defs.appendChild(pat);
+  return el("rect", {
+    x: n(G.active.x), y: n(G.active.y), width: n(G.active.w), height: n(G.active.h), fill: `url(#${id})`,
+  });
 }
 
-/** The emitting area of the dot at logical (px, py). */
-function dotNode(px, py) {
-  const G = state.G;
-  const { cx, cy } = G.centre(px, py);
-  return shapeNode(cx, cy, G.lens);
-}
-
-/** Package bodies — the parts you can see whether or not they are powered. */
-function buildPackages(D) {
-  const G = state.G;
-  if (!G.pkg) return null;
-  const layer = el("g", { id: "pkgLayer", fill: D.pkgFill ?? "#171c24" });
-  for (let py = 0; py < G.pxRows; py++)
-    for (let px = 0; px < G.pxCols; px++) {
-      const { cx, cy } = G.centre(px, py);
-      layer.appendChild(shapeNode(cx, cy, G.pkg));
-    }
+function buildPackages(D, G, defs) {
+  const layer = el("g", { id: "pkgLayer" });
+  layer.appendChild(tiled("pkgPat", defs, G, (x, y) => packageNode(D, x, y)));
   return layer;
 }
 
-function buildGrid(P) {
-  const G = state.G;
-  // An unpowered LED lens still catches light; an unlit VFD dot does not.
-  const grid = el("g", {
-    id: "gridLayer", fill: G.pkg ? "#8ea0b8" : P.tight,
-    "fill-opacity": G.pkg ? "0.13" : "0.055",
-  });
+function buildGrid(P, G, defs) {
+  // An unpowered LED die or an idle LCD pixel still catches light; an
+  // unlit VFD dot does not.
+  const fill = G.pkg ? "#8ea0b8" : G.kind === "lcd" ? "#dce9ff" : P.tight;
+  const op = G.pkg ? 0.16 : G.kind === "lcd" ? 0.1 : 0.055;
+  const attrs = { id: "gridLayer", fill, "fill-opacity": op };
+
+  if (G.uniform) {
+    const layer = el("g", attrs);
+    layer.appendChild(tiled("gridPat", defs, G, (x, y) => shapeNode(x, y, G.lens)));
+    return layer;
+  }
+  const grid = el("g", attrs);
   for (let py = 0; py < G.pxRows; py++)
     for (let px = 0; px < G.pxCols; px++) grid.appendChild(dotNode(px, py));
   return grid;
-}
-
-function buildHitLayer() {
-  const G = state.G;
-  const layer = el("g", { id: "hitLayer", fill: "transparent", "pointer-events": "all" });
-  for (let py = 0; py < G.pxRows; py++)
-    for (let px = 0; px < G.pxCols; px++) {
-      const { cx, cy } = G.centre(px, py);
-      layer.appendChild(el("rect", {
-        x: n(cx - G.hitW / 2), y: n(cy - G.hitH / 2),
-        width: n(G.hitW), height: n(G.hitH), "data-px": px, "data-py": py,
-      }));
-    }
-  return layer;
 }
 
 function blur(id, sd) {
@@ -721,7 +784,7 @@ function blur(id, sd) {
  * Lit dots
  * ================================================================== */
 function renderText() {
-  const D = state.display, G = state.G, P = palette();
+  const G = state.G, P = palette();
   const overrides = pix();
   const litLayer = svg.querySelector("#litLayer");
   litLayer.textContent = "";
@@ -734,28 +797,13 @@ function renderText() {
       litLayer.appendChild(dotNode(px, py));
     }
 
-  if (state.cursor) {
-    const stride = D.kind === "vfd" ? 5 : 6;
-    const px = state.caret * stride;
-    const py = state.focusLine * 8 + 7;
-    if (px < G.pxCols && py < G.pxRows) {
-      const a = G.centre(px, py);
-      const last = G.centre(Math.min(px + 4, G.pxCols - 1), py);
-      const cur = el("rect", {
-        x: n(a.cx - G.dotW / 2), y: n(a.cy - G.dotH / 2),
-        width: n(last.cx + G.dotW / 2 - (a.cx - G.dotW / 2)), height: n(G.dotH),
-      });
-      cur.appendChild(el("animate", { attributeName: "opacity", values: "1;1;0;0", dur: "1.06s", repeatCount: "indefinite" }));
-      litLayer.appendChild(cur);
-    }
-  }
-
   paintBloom(P);
   applyBrightness();
   document.getElementById("clearPixels").disabled = overrides.size === 0;
 }
 
 function paintBloom(P) {
+  const passes = state.display.bloomPasses ?? 3;
   const wide = svg.querySelector("#bloomWide");
   const tight = svg.querySelector("#bloomTight");
   const wash = svg.querySelector("#washLayer");
@@ -771,14 +819,17 @@ function paintBloom(P) {
     clone.setAttribute("opacity", opacity);
     return clone;
   };
-  tight.appendChild(mk("fTight", P.tight, 0.95));
-  wide.appendChild(mk("fWide", P.wide, 0.5));
+  // An LCD does not bloom per pixel; its backlight just glows a little.
+  if (passes >= 3) {
+    tight.appendChild(mk("fTight", P.tight, 0.95));
+    wide.appendChild(mk("fWide", P.wide, 0.5));
+  }
   wash.appendChild(mk("fWash", P.wash, 0.28));
 }
 
 function applyBrightness() {
   const b = state.brightness * state.filter.t;
-  const gain = state.display.bloomGain ?? 1;      // discrete LEDs spill harder than phosphor
+  const gain = state.display.bloomGain ?? 1;
   const cap = (v) => Math.min(1, v);
   svg.querySelector("#litLayer").setAttribute("opacity", 0.35 + 0.65 * b);
   svg.querySelector("#bloomTight").setAttribute("opacity", cap(b * gain));
@@ -816,9 +867,9 @@ function renderDims() {
 
   // one cell of the matrix, called out
   const m = 0.25 * s;
-  const cellW = D.kind === "vfd" ? D.cell.w : G.dotW;
-  const cellH = D.kind === "vfd" ? D.cell.h : G.dotH;
-  const at = D.kind === "vfd" ? G.centre(10, 0) : G.centre(Math.min(2, G.pxCols - 1), 0);
+  const cellW = D.kind === "vfd" ? D.cell.w : G.pkg ? G.pkg.w : G.lens.w;
+  const cellH = D.kind === "vfd" ? D.cell.h : G.pkg ? G.pkg.h : G.lens.h;
+  const at = G.centre(Math.min(D.kind === "vfd" ? 10 : 2, G.pxCols - 1), 0);
   const bx = at.cx - cellW / 2, by = at.cy - cellH / 2;
   layer.appendChild(el("rect", {
     x: n(bx - m), y: n(by - m), width: n(cellW + m * 2), height: n(cellH + m * 2),
@@ -851,36 +902,58 @@ function vDim(layer, s, y1, y2, x, label) {
 
 /* ================================================================== *
  * Pixel drawing
+ *
+ * Hit-tested against the pixel grid arithmetically rather than with a
+ * layer of transparent targets — an 8192-pixel LCD would need 8192 of
+ * them, and they would all have to be rebuilt on every resize.
  * ================================================================== */
-function paintAt(target, value) {
-  const d = target?.dataset;
-  if (!d || d.px === undefined) return;
-  const px = +d.px, py = +d.py;
-  const overrides = pix(), k = pkey(px, py);
+function pixelAt(evt) {
+  const G = state.G;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const p = new DOMPoint(evt.clientX, evt.clientY).matrixTransform(ctm.inverse());
+  if (p.x < G.active.x - G.hitW || p.x > G.active.x + G.active.w + G.hitW) return null;
+  if (p.y < G.active.y - G.hitH || p.y > G.active.y + G.active.h + G.hitH) return null;
+
+  // Uniform grids invert directly; the others are small enough to scan.
+  if (G.uniform) {
+    const px = Math.round((p.x - G.first.x) / G.pitchX);
+    const py = Math.round((p.y - G.first.y) / G.pitchY);
+    if (px < 0 || py < 0 || px >= G.pxCols || py >= G.pxRows) return null;
+    return { px, py };
+  }
+  let best = null, bestD = Infinity;
+  for (let py = 0; py < G.pxRows; py++)
+    for (let px = 0; px < G.pxCols; px++) {
+      const c = G.centre(px, py);
+      const d = (c.cx - p.x) ** 2 + (c.cy - p.y) ** 2;
+      if (d < bestD) { bestD = d; best = { px, py }; }
+    }
+  const reach = Math.max(G.hitW, G.hitH) * 0.75;
+  return bestD <= reach * reach ? best : null;
+}
+
+function paintAt(hit, value) {
+  if (!hit) return;
+  const overrides = pix(), k = pkey(hit.px, hit.py);
   // Falling back to the glyph means a "clean" toggle returns to the text.
-  if (value === baseBit(px, py)) overrides.delete(k);
+  if (value === baseBit(hit.px, hit.py)) overrides.delete(k);
   else overrides.set(k, value);
   renderText();
 }
 
-const stage = document.getElementById("stage");
-stage.addEventListener("pointerdown", (e) => {
-  const hit = e.target.closest?.("#hitLayer rect");
-  if (!hit) {
-    const box = svg.getBoundingClientRect();
-    inputs[(e.clientY - box.top) / box.height > 0.5 ? 1 : 0].focus();
-    return;
-  }
+svg.addEventListener("pointerdown", (e) => {
+  const hit = pixelAt(e);
+  if (!hit) return;
   e.preventDefault();
-  const px = +hit.dataset.px, py = +hit.dataset.py, k = pkey(px, py);
-  const overrides = pix();
-  const current = overrides.has(k) ? overrides.get(k) : baseBit(px, py);
+  const overrides = pix(), k = pkey(hit.px, hit.py);
+  const current = overrides.has(k) ? overrides.get(k) : baseBit(hit.px, hit.py);
   state.painting = true;
   state.paintValue = !current;
   paintAt(hit, state.paintValue);
 });
-stage.addEventListener("pointerover", (e) => {
-  if (state.painting) paintAt(e.target.closest?.("#hitLayer rect"), state.paintValue);
+svg.addEventListener("pointermove", (e) => {
+  if (state.painting) paintAt(pixelAt(e), state.paintValue);
 });
 window.addEventListener("pointerup", () => { state.painting = false; });
 
@@ -900,15 +973,7 @@ function syncFromInputs() {
   });
   renderText();
 }
-
-inputs.forEach((inp, i) => {
-  const track = () => {
-    state.focusLine = i;
-    state.caret = inp.selectionStart ?? inp.value.length;
-    syncFromInputs();
-  };
-  ["input", "keyup", "click", "focus"].forEach((ev) => inp.addEventListener(ev, track));
-});
+inputs.forEach((inp) => inp.addEventListener("input", syncFromInputs));
 
 /* display picker */
 const picker = document.getElementById("picker");
@@ -1022,13 +1087,11 @@ const toggle = (id, key, after) =>
   });
 toggle("tDims", "dims", renderDims);
 toggle("tGrid", "grid", applyBrightness);
-toggle("tCursor", "cursor", renderText);
 toggle("tBloom", "bloom", renderText);
 toggle("tScale", "trueScale", redraw);
 
 document.getElementById("clearText").addEventListener("click", () => {
   inputs.forEach((i) => (i.value = ""));
-  inputs[0].focus();
   syncFromInputs();
 });
 document.getElementById("clearPixels").addEventListener("click", () => {
@@ -1044,8 +1107,6 @@ document.getElementById("save").addEventListener("click", () => {
   out.setAttribute("xmlns", NS);
   out.setAttribute("width", n(w));
   out.setAttribute("height", n(h));
-  out.querySelector("#hitLayer")?.remove();
-  out.querySelectorAll("animate").forEach((a) => a.remove());
   out.insertBefore(el("rect", { x: n(-PAD), y: n(-PAD), width: n(w), height: n(h), fill: "#0b0f0d" }), out.firstChild.nextSibling);
   const suffix = state.filter.id === "none" ? "" : `-${state.filter.id}`;
   download(new XMLSerializer().serializeToString(out), `${D.id}-${G.pxCols}x${G.pxRows}${suffix}.svg`, "image/svg+xml");
@@ -1064,39 +1125,45 @@ function renderSpec() {
   const D = state.display, G = geom(D);
   const B = G.board, A = G.active;
   const areaB = B.w * B.h, areaA = A.w * A.h;
+  const kindName = { vfd: "Character VFD", charlie: "Charlieplexed LED", blocks: "Tiled LED matrix", lcd: "Graphic LCD" };
 
   const rows = [
     ["Part", D.part],
-    ["Type", { vfd: "Character VFD", charlie: "Charlieplexed LED", blocks: "Tiled LED matrix" }[D.kind]],
+    ["Type", kindName[D.kind]],
     ["Colour", D.colourNote],
     ["rule"],
-    ["PCB outline", `${round2(B.w)} × ${round2(B.h)}`],
+    [D.kind === "lcd" ? "Module outline" : "PCB outline", `${round2(B.w)} × ${round2(B.h)}`],
   ];
-  if (G.glass) rows.push(["VFD glass", `${G.glass.w} × ${G.glass.h}`]);
+  if (D.kind === "vfd") rows.push(["VFD glass", `${G.glass.w} × ${G.glass.h}`]);
+  if (D.kind === "lcd") rows.push(["Viewing area", `${G.glass.w} × ${G.glass.h}`]);
   if (D.kind === "blocks") rows.push(["Blocks", `${D.blocksX} × ${D.blocksY} of ${D.block.size} mm`]);
   rows.push(["Active area", `${round2(A.w)} × ${round2(A.h)}`]);
+
   if (D.kind === "vfd") {
     rows.push(["Character cell", `${D.cell.w} × ${D.cell.h}`]);
     rows.push(["Char pitch", `${round2(G.charPitchX)} × ${round2(G.linePitchY)}`]);
     rows.push(["Dot", `${D.dot.w} × ${D.dot.h}`]);
     rows.push(["Dot pitch", `${D.pitch.x} × ${D.pitch.y}`]);
   } else if (D.kind === "charlie") {
-    rows.push(["Package", `${D.pkg.w} × ${D.pkg.h} at 45°`]);
-    rows.push(["Diagonal", round2(D.pkg.w * SQRT2)]);
-    rows.push(["Lens", `${D.led.w} × ${D.led.h}`]);
+    rows.push(["Package", `${D.pkg.w} × ${D.pkg.h} at ${D.rot}°`]);
+    rows.push(["Rotated bbox", round2(G.bbox)]);
+    rows.push(["Emitting window", `${D.led.w} × ${D.led.h}`]);
     rows.push(["LED pitch", round2(D.pitch)]);
-    rows.push(["Diagonal gap", round2(D.pitch - D.pkg.w * SQRT2)]);
+    rows.push(["Package gap", round2(D.pitch - G.bbox)]);
+  } else if (D.kind === "lcd") {
+    rows.push(["Dot", `${D.dot.w} × ${D.dot.h}`]);
+    rows.push(["Dot pitch", `${round3(G.pitchX)} × ${round3(G.pitchY)}`]);
   } else {
     rows.push(["LED", `${D.led.w} × ${D.led.h} ${D.shape === "circle" ? "round" : "square"}`]);
-    // Across a seam the spacing is the module size less the seven in-block steps.
     rows.push(["LED pitch", `${D.block.pitch} in block, ${round2(D.block.size - 7 * D.block.pitch)} across seam`]);
   }
+
   rows.push(["Mounting holes", `4 × ø${G.hole.d}${D.holeSpan ? ", " + D.holeSpan : ""}`]);
   rows.push(["rule"]);
-  rows.push(["PCB area", `${areaB.toFixed(0)} mm²`]);
-  rows.push(["Active / PCB", `${((areaA / areaB) * 100).toFixed(1)}%`]);
+  rows.push([D.kind === "lcd" ? "Module area" : "PCB area", `${areaB.toFixed(0)} mm²`]);
+  rows.push(["Active / outline", `${((areaA / areaB) * 100).toFixed(1)}%`]);
   rows.push(["Resolution", `${G.pxCols} × ${G.pxRows} dots`]);
-  rows.push(["Total dots", `${G.pxCols * G.pxRows}`]);
+  rows.push(["Total dots", `${(G.pxCols * G.pxRows).toLocaleString()}`]);
   rows.push(["Text capacity", `${capacityFor(D, G)} chars/line`]);
 
   const t = document.getElementById("spec");
@@ -1133,8 +1200,6 @@ function renderSpec() {
 
 selectFilter(FILTERS[0]);
 selectDisplay(DISPLAYS[0]);
-inputs[0].focus();
-inputs[0].setSelectionRange(inputs[0].value.length, inputs[0].value.length);
 </script>
 </body>
 </html>
