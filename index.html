@@ -243,6 +243,7 @@ const DISPLAYS = [
     kind: "charlie", id: "charliewing", part: "Custom Charlieplexed LED Matrix",
     blurb: "LED &middot; 15 x 7 &middot; chip LEDs at 45&deg;",
     cols: 15, rows: 7,
+    font: "f3x5", scale: 1,      // seven rows only clears the 3x5
     pitch: 2.80,
     /* A rectangular chip LED laid diagonally. Body, then the two solder
        terminals at each end, then the emitting window in the middle. */
@@ -269,6 +270,7 @@ const DISPLAYS = [
     kind: "blocks", id: "ledblocks", part: "Luckylight KWM-R30881XBB",
     blurb: "LED &middot; 1.2\" 8x8 blocks &middot; tileable",
     blocksX: 2, blocksY: 1,
+    font: "f5x8", scale: 1,
     block: { size: 31.70, inset: 0.35, pitch: 4.00 },
     led: { w: 3.00, h: 3.00 },
     carrier: 3.00,
@@ -287,6 +289,7 @@ const DISPLAYS = [
     kind: "lcd", id: "lcd12864", part: "Futurlec BLUE128X64LCD",
     blurb: "LCD &middot; 128 x 64 &middot; white on blue",
     cols: 128, rows: 64,
+    font: "f5x8", scale: 2,
     board: { w: 93.00, h: 70.00 },
     va: { w: 62.00, h: 33.00 },
     dot: { w: 0.42, h: 0.48 },
@@ -308,18 +311,27 @@ const DISPLAYS = [
   },
 ];
 
+/* Font and size are offered on anything that isn't a character VFD. */
+const TYPE_FIELDS = [
+  { key: "font",  label: "Font", choices: [["f3x5", "3x5"], ["f4x6", "4x6"], ["f5x8", "5x8"]] },
+  { key: "scale", label: "Size", choices: [[1, "1x"], [2, "2x"], [3, "3x"]] },
+];
+
 /* Editable fields per display kind. */
 const CONFIG = {
   charlie: [
     { key: "cols",  label: "Columns", min: 1, max: 64, step: 1 },
     { key: "rows",  label: "Rows",    min: 1, max: 32, step: 1 },
     { key: "pitch", label: "Pitch",   min: 1.50, max: 12, step: 0.05, unit: "mm" },
+    ...TYPE_FIELDS,
   ],
   blocks: [
     { key: "blocksX", label: "Across", min: 1, max: 12, step: 1 },
     { key: "blocksY", label: "Down",   min: 1, max: 8,  step: 1 },
     { key: "shape",   label: "Dots",   choices: [["square", "Square"], ["circle", "Round"]] },
+    ...TYPE_FIELDS,
   ],
+  lcd: [...TYPE_FIELDS],
 };
 
 /* Edge margins come from the stock board, so the reference configuration
@@ -353,10 +365,20 @@ const FILTERS = [
 ];
 
 /* ================================================================== *
- * 5x8 font. 8 rows of 5 columns, "/" separated, "#" = lit dot.
- * Hand-transcribed HD44780 A00 shapes; row 8 is the descender row.
+ * Fonts
+ *
+ * Every glyph is rows of "#" and "." separated by "/", so a table can be
+ * read and edited by eye. The last row of each is the descender row,
+ * used by g j p q y and the comma.
+ *
+ * All three tables are drawn by hand. The 5x8 follows the HD44780 A00
+ * ROM the VFD controllers actually carry; the 3x5 and 4x6 follow the
+ * usual shapes for fonts of those sizes (Tom Thumb, X11 misc-fixed)
+ * without being transcriptions of either.
  * ================================================================== */
-const GLYPHS = {
+
+/* 5x8 — HD44780 A00. The only font the character VFDs can show. */
+const G5X8 = {
   " ": "...../...../...../...../...../...../...../.....",
   "!": "..#../..#../..#../..#../..#../...../..#../.....",
   '"': ".#.#./.#.#./.#.#./...../...../...../...../.....",
@@ -453,16 +475,229 @@ const GLYPHS = {
   "}": ".#.../..#../..#../...#./..#../..#../.#.../.....",
   "~": "...../...../.#.../#.#.#/...#./...../...../.....",
 };
-const UNKNOWN = "#####/#####/#####/#####/#####/#####/#####/#####";
+/* 3x5 — micro font, Tom Thumb proportions. Five body rows plus a
+   descender, so it clears a seven-row matrix with a blank row to spare. */
+const G3X5 = {
+  " ": ".../.../.../.../.../...",
+  "!": ".#./.#./.#./.../.#./...",
+  '"': "#.#/#.#/.../.../.../...",
+  "#": "#.#/###/#.#/###/#.#/...",
+  "$": ".##/##./.##/##./.#./...",
+  "%": "#.#/..#/.#./#../#.#/...",
+  "&": ".#./##./###/#.#/.##/...",
+  "'": ".#./.#./.../.../.../...",
+  "(": "..#/.#./.#./.#./..#/...",
+  ")": "#../.#./.#./.#./#../...",
+  "*": "#.#/.#./#.#/.../.../...",
+  "+": ".../.#./###/.#./.../...",
+  ",": ".../.../.../.../.#./#..",
+  "-": ".../.../###/.../.../...",
+  ".": ".../.../.../.../.#./...",
+  "/": "..#/..#/.#./#../#../...",
+  "0": ".#./#.#/#.#/#.#/.#./...",
+  "1": ".#./##./.#./.#./###/...",
+  "2": "##./..#/.#./#../###/...",
+  "3": "##./..#/.##/..#/##./...",
+  "4": "#.#/#.#/###/..#/..#/...",
+  "5": "###/#../##./..#/##./...",
+  "6": ".##/#../###/#.#/###/...",
+  "7": "###/..#/.#./.#./.#./...",
+  "8": "###/#.#/###/#.#/###/...",
+  "9": "###/#.#/###/..#/##./...",
+  ":": ".../.#./.../.#./.../...",
+  ";": ".../.#./.../.#./.#./#..",
+  "<": "..#/.#./#../.#./..#/...",
+  "=": ".../###/.../###/.../...",
+  ">": "#../.#./..#/.#./#../...",
+  "?": "##./..#/.#./.../.#./...",
+  "@": "###/#.#/###/#../.##/...",
+  "A": ".#./#.#/###/#.#/#.#/...",
+  "B": "##./#.#/##./#.#/##./...",
+  "C": ".##/#../#../#../.##/...",
+  "D": "##./#.#/#.#/#.#/##./...",
+  "E": "###/#../##./#../###/...",
+  "F": "###/#../##./#../#../...",
+  "G": ".##/#../#.#/#.#/.##/...",
+  "H": "#.#/#.#/###/#.#/#.#/...",
+  "I": "###/.#./.#./.#./###/...",
+  "J": "..#/..#/..#/#.#/.#./...",
+  "K": "#.#/#.#/##./#.#/#.#/...",
+  "L": "#../#../#../#../###/...",
+  "M": "#.#/###/###/#.#/#.#/...",
+  "N": "#.#/###/###/###/#.#/...",
+  "O": "###/#.#/#.#/#.#/###/...",
+  "P": "##./#.#/##./#../#../...",
+  "Q": "###/#.#/#.#/###/..#/...",
+  "R": "##./#.#/##./#.#/#.#/...",
+  "S": ".##/#../.#./..#/##./...",
+  "T": "###/.#./.#./.#./.#./...",
+  "U": "#.#/#.#/#.#/#.#/###/...",
+  "V": "#.#/#.#/#.#/#.#/.#./...",
+  "W": "#.#/#.#/###/###/#.#/...",
+  "X": "#.#/#.#/.#./#.#/#.#/...",
+  "Y": "#.#/#.#/.#./.#./.#./...",
+  "Z": "###/..#/.#./#../###/...",
+  "[": "###/#../#../#../###/...",
+  "\\": "#../#../.#./..#/..#/...",
+  "]": "###/..#/..#/..#/###/...",
+  "^": ".#./#.#/.../.../.../...",
+  "_": ".../.../.../.../.../###",
+  "`": "#../.#./.../.../.../...",
+  "a": ".../##./.##/#.#/.##/...",
+  "b": "#../#../##./#.#/##./...",
+  "c": ".../.##/#../#../.##/...",
+  "d": "..#/..#/.##/#.#/.##/...",
+  "e": ".../.#./#.#/##./.##/...",
+  "f": "..#/.#./###/.#./.#./...",
+  "g": ".../.##/#.#/.##/..#/##.",
+  "h": "#../#../##./#.#/#.#/...",
+  "i": ".#./.../.#./.#./.#./...",
+  "j": "..#/.../..#/..#/..#/##.",
+  "k": "#../#.#/##./#.#/#.#/...",
+  "l": "##./.#./.#./.#./.##/...",
+  "m": ".../.../##./###/#.#/...",
+  "n": ".../.../##./#.#/#.#/...",
+  "o": ".../.../###/#.#/###/...",
+  "p": ".../.../##./#.#/##./#..",
+  "q": ".../.../.##/#.#/.##/..#",
+  "r": ".../.../.##/#../#../...",
+  "s": ".../.##/##./..#/##./...",
+  "t": ".#./###/.#./.#./.##/...",
+  "u": ".../.../#.#/#.#/.##/...",
+  "v": ".../.../#.#/#.#/.#./...",
+  "w": ".../.../#.#/###/#.#/...",
+  "x": ".../.../#.#/.#./#.#/...",
+  "y": ".../.../#.#/.##/..#/##.",
+  "z": ".../.../###/.#./###/...",
+  "{": "..#/.#./##./.#./..#/...",
+  "|": ".#./.#./.#./.#./.#./...",
+  "}": "#../.#./.##/.#./#../...",
+  "~": ".../.../.##/##./.../...",
+};
+
+/* 4x6 — small font with real lowercase and descenders. */
+const G4X6 = {
+  " ": "..../..../..../..../..../....",
+  "!": ".#../.#../.#../..../.#../....",
+  '"': "#.#./#.#./..../..../..../....",
+  "#": "#.#./####/#.#./####/#.#./....",
+  "$": ".##./##../.##./##../.#../....",
+  "%": "#..#/...#/..#./.#../#..#/....",
+  "&": ".#../#.#./.##./#.#./.###/....",
+  "'": ".#../.#../..../..../..../....",
+  "(": "..#./.#../.#../.#../..#./....",
+  ")": ".#../..#./..#./..#./.#../....",
+  "*": "..../#.#./.##./#.#./..../....",
+  "+": "..../.#../###./.#../..../....",
+  ",": "..../..../..../..../.#../#...",
+  "-": "..../..../###./..../..../....",
+  ".": "..../..../..../..../.#../....",
+  "/": "...#/..#./.#../#.../..../....",
+  "0": ".##./#..#/#..#/#..#/.##./....",
+  "1": ".#../##../.#../.#../###./....",
+  "2": ".##./#..#/..#./.#../####/....",
+  "3": "###./...#/.##./...#/###./....",
+  "4": "#..#/#..#/####/...#/...#/....",
+  "5": "####/#.../###./...#/###./....",
+  "6": ".##./#.../###./#..#/.##./....",
+  "7": "####/...#/..#./.#../.#../....",
+  "8": ".##./#..#/.##./#..#/.##./....",
+  "9": ".##./#..#/.###/...#/.##./....",
+  ":": "..../.#../..../.#../..../....",
+  ";": "..../.#../..../.#../.#../#...",
+  "<": "..#./.#../#.../.#../..#./....",
+  "=": "..../###./..../###./..../....",
+  ">": "#.../.#../..#./.#../#.../....",
+  "?": ".##./#..#/..#./..../..#./....",
+  "@": ".##./#..#/#.##/#.../.##./....",
+  "A": ".##./#..#/####/#..#/#..#/....",
+  "B": "###./#..#/###./#..#/###./....",
+  "C": ".##./#..#/#.../#..#/.##./....",
+  "D": "###./#..#/#..#/#..#/###./....",
+  "E": "####/#.../###./#.../####/....",
+  "F": "####/#.../###./#.../#.../....",
+  "G": ".##./#.../#.##/#..#/.##./....",
+  "H": "#..#/#..#/####/#..#/#..#/....",
+  "I": "###./.#../.#../.#../###./....",
+  "J": "..##/...#/...#/#..#/.##./....",
+  "K": "#..#/#.#./##../#.#./#..#/....",
+  "L": "#.../#.../#.../#.../####/....",
+  "M": "#..#/####/####/#..#/#..#/....",
+  "N": "#..#/##.#/#.##/#..#/#..#/....",
+  "O": ".##./#..#/#..#/#..#/.##./....",
+  "P": "###./#..#/###./#.../#.../....",
+  "Q": ".##./#..#/#..#/#.#./.#.#/....",
+  "R": "###./#..#/###./#.#./#..#/....",
+  "S": ".###/#.../.##./...#/###./....",
+  "T": "####/.#../.#../.#../.#../....",
+  "U": "#..#/#..#/#..#/#..#/.##./....",
+  "V": "#..#/#..#/#..#/.##./..#./....",
+  "W": "#..#/#..#/####/####/#..#/....",
+  "X": "#..#/.##./.##./.##./#..#/....",
+  "Y": "#..#/#..#/.##./.#../.#../....",
+  "Z": "####/..#./.#../#.../####/....",
+  "[": ".##./.#../.#../.#../.##./....",
+  "\\": "#.../.#../..#./...#/..../....",
+  "]": ".##./..#./..#./..#./.##./....",
+  "^": ".#../#.#./..../..../..../....",
+  "_": "..../..../..../..../..../####",
+  "`": "#.../.#../..../..../..../....",
+  "a": "..../.##./..##/#..#/.###/....",
+  "b": "#.../#.../###./#..#/###./....",
+  "c": "..../.##./#.../#.../.##./....",
+  "d": "...#/...#/.###/#..#/.###/....",
+  "e": "..../.##./#.##/#.../.##./....",
+  "f": "..##/.#../###./.#../.#../....",
+  "g": "..../.###/#..#/.###/...#/.##.",
+  "h": "#.../#.../###./#..#/#..#/....",
+  "i": ".#../..../##../.#../###./....",
+  "j": "..#./..../..#./..#./..#./##..",
+  "k": "#.../#..#/##../#.#./#..#/....",
+  "l": "##../.#../.#../.#../.###/....",
+  "m": "..../..../##.#/####/#..#/....",
+  "n": "..../..../###./#..#/#..#/....",
+  "o": "..../.##./#..#/#..#/.##./....",
+  "p": "..../###./#..#/###./#.../#...",
+  "q": "..../.###/#..#/.###/...#/...#",
+  "r": "..../#.##/##../#.../#.../....",
+  "s": "..../.###/##../..##/###./....",
+  "t": ".#../###./.#../.#../..##/....",
+  "u": "..../..../#..#/#..#/.###/....",
+  "v": "..../..../#..#/#..#/.##./....",
+  "w": "..../..../#..#/####/.##./....",
+  "x": "..../..../#..#/.##./#..#/....",
+  "y": "..../..../#..#/.###/...#/.##.",
+  "z": "..../..../####/.##./####/....",
+  "{": "..##/.#../##../.#../..##/....",
+  "|": ".#../.#../.#../.#../.#../....",
+  "}": "##../..#./..##/..#./##../....",
+  "~": "..../..../.#.#/#.#./..../....",
+};
+
+const FONTS = [
+  { id: "f3x5", name: "3x5", w: 3, h: 6, glyphs: G3X5,
+    note: "Micro font at Tom Thumb proportions. The only one that clears a seven-row matrix." },
+  { id: "f4x6", name: "4x6", w: 4, h: 6, glyphs: G4X6,
+    note: "Small font with real lowercase and descenders, in the X11 misc-fixed idiom." },
+  { id: "f5x8", name: "5x8", w: 5, h: 8, glyphs: G5X8,
+    note: "The HD44780 A00 shapes the VFD controllers carry. Needs eight rows." },
+];
+const FONT_BY_ID = Object.fromEntries(FONTS.map((f) => [f.id, f]));
 
 const bitmapCache = new Map();
-function glyph(ch) {
-  let bm = bitmapCache.get(ch);
+/** Dot grid for one character of one font: bitmap[row][col]. */
+function glyph(font, ch) {
+  const key = font.id + ch;
+  let bm = bitmapCache.get(key);
   if (bm) return bm;
-  bm = (GLYPHS[ch] || UNKNOWN).split("/").map((r) => r.split("").map((c) => c === "#"));
-  bitmapCache.set(ch, bm);
+  // Unmapped code points show a solid block, the way a character ROM does.
+  const rows = font.glyphs[ch] ?? new Array(font.h).fill("#".repeat(font.w)).join("/");
+  bm = rows.split("/").map((r) => r.padEnd(font.w, ".").split("").map((c) => c === "#"));
+  while (bm.length < font.h) bm.push(new Array(font.w).fill(false));
+  bitmapCache.set(key, bm);
   return bm;
 }
+const FONT_5X8 = FONT_BY_ID.f5x8;
 
 /* ================================================================== *
  * Helpers
@@ -608,7 +843,16 @@ function palette() {
   };
 }
 
-const capacityFor = (D, G) => (D.kind === "vfd" ? D.cols : Math.max(0, Math.floor((G.pxCols + 1) / 6)));
+/* Character VFDs are hard-wired to their ROM; everything else picks a
+   font and an integer scale, the way setTextSize() works in firmware. */
+const fontFor = (D) => (D.kind === "vfd" ? FONT_5X8 : FONT_BY_ID[D.font] ?? FONT_5X8);
+const scaleFor = (D) => (D.kind === "vfd" ? 1 : D.scale ?? 1);
+
+function capacityFor(D, G) {
+  if (D.kind === "vfd") return D.cols;
+  const F = fontFor(D), S = scaleFor(D);
+  return Math.max(0, Math.floor((Math.floor(G.pxCols / S) + 1) / (F.w + 1)));
+}
 const capacity = () => capacityFor(state.display, state.G);
 
 /** Does the typed text light this pixel, ignoring hand-drawn overrides? */
@@ -616,15 +860,21 @@ function baseBit(px, py) {
   const D = state.display;
   if (D.kind === "vfd") {
     const ch = state.lines[Math.floor(py / 8)]?.[Math.floor(px / 5)] ?? " ";
-    return glyph(ch)[py % 8][px % 5];
+    return glyph(FONT_5X8, ch)[py % 8][px % 5];
   }
-  // Raw matrices: pack 5x8 glyphs left to right with a one-pixel gap,
-  // line 1 at the top and line 2 eight rows down when there is room.
-  if (py >= 16) return false;
-  const col = px % 6;
-  if (col === 5) return false;                     // inter-character gap
-  const ch = state.lines[py < 8 ? 0 : 1]?.[Math.floor(px / 6)];
-  return ch === undefined ? false : glyph(ch)[py % 8][col];
+  // Raw matrices: glyphs packed left to right with a one-pixel gap, line
+  // 1 at the top and line 2 a glyph-height down when there is room.
+  const F = fontFor(D), S = scaleFor(D);
+  const gx = Math.floor(px / S), gy = Math.floor(py / S);
+  const lineH = F.h + 1;
+  const line = Math.floor(gy / lineH);
+  if (line > 1) return false;
+  const ry = gy - line * lineH;
+  if (ry >= F.h) return false;                     // inter-line gap
+  const cx = gx % (F.w + 1);
+  if (cx >= F.w) return false;                     // inter-character gap
+  const ch = state.lines[line]?.[Math.floor(gx / (F.w + 1))];
+  return ch === undefined ? false : glyph(F, ch)[ry][cx];
 }
 
 /* ================================================================== *
@@ -1155,7 +1405,13 @@ function renderSpec() {
   rows.push(["Active / outline", `${((areaA / areaB) * 100).toFixed(1)}%`]);
   rows.push(["Resolution", `${G.pxCols} × ${G.pxRows} dots`]);
   rows.push(["Total dots", `${(G.pxCols * G.pxRows).toLocaleString()}`]);
-  rows.push(["Text capacity", `${capacityFor(D, G)} chars/line`]);
+  const F = fontFor(D), S = scaleFor(D);
+  const cellH = F.h * S;
+  const lines = Math.max(0, Math.min(2, Math.floor((G.pxRows + S) / ((F.h + 1) * S))));
+  rows.push(["Font", D.kind === "vfd" ? "5x8 character ROM" : `${F.name}${S > 1 ? " at " + S + "x" : ""}`]);
+  rows.push(["Text capacity", `${capacityFor(D, G)} x ${lines} chars`]);
+  if (D.kind !== "vfd" && cellH > G.pxRows)
+    rows.push(["Too tall", `needs ${cellH} rows, has ${G.pxRows}`]);
 
   const t = document.getElementById("spec");
   t.textContent = "";
@@ -1175,7 +1431,9 @@ function renderSpec() {
 
   const ul = document.getElementById("notes");
   ul.textContent = "";
-  for (const note of D.notes) {
+  const notes = [...D.notes];
+  if (D.kind !== "vfd") notes.push(`${F.name}: ${F.note}`);
+  for (const note of notes) {
     const li = document.createElement("li");
     li.textContent = note;
     ul.appendChild(li);

@@ -48,8 +48,10 @@ real relative sizes are directly comparable.
 ## Use
 
 - **Type** into the two line inputs. VFDs place one glyph per character cell;
-  the other panels pack 5 × 8 glyphs left to right with a one-pixel gap, line 2
-  eight rows down when there is room.
+  the other panels pack glyphs left to right with a one-pixel gap, line 2 a
+  glyph-height down when there is room.
+- **Choose a font** on anything that isn't a VFD, at 1×, 2× or 3× — the same
+  font-plus-integer-scale model firmware uses (`setTextSize()`).
 - **Draw** by clicking or dragging across the matrix. Pixel overrides sit on top
   of the typed text and are kept per module.
 - **Configure** resolution, pitch, block count and dot shape on the LED modules.
@@ -90,12 +92,38 @@ Things that are *not* on a datasheet at all, listed in-app per module:
 - **The LCD viewing area's position** on the module, drawn centred. On a real
   part it usually sits slightly high, with the connector along the bottom.
 - **The inner phosphor window inset** on the VFDs.
-- **Glyphs** are hand-transcribed HD44780 A00 shapes, not a factory ROM dump.
+- **All three glyph tables**, which are drawn by hand. See below.
 
 One result worth flagging because it is counterintuitive: the 8 × 8 blocks put
 their dots just 0.35 mm inside the module edge, so butting two together leaves
 the LEDs either side of a seam **3.70 mm** apart against **4.00 mm** inside a
 block. Tiling compresses the seam rather than opening it up.
+
+## Fonts
+
+Character VFDs are hard-wired to their controller's ROM, so they always render
+5 × 8. Everything else picks a font and an integer scale:
+
+| | Cell | Rows needed | Notes |
+|---|---|---|---|
+| **3×5** | 3 × 6 | 6 | Tom Thumb proportions. The only font that clears a seven-row matrix. |
+| **4×6** | 4 × 6 | 6 | Real lowercase and descenders, X11 misc-fixed idiom. |
+| **5×8** | 5 × 8 | 8 | The HD44780 A00 shapes the VFD controllers carry. |
+
+Each is full printable ASCII (0x20–0x7E, 95 glyphs) with a descender row, and
+unmapped code points show a solid block the way a character ROM does. Tables
+live in `G3X5`, `G4X6` and `G5X8` as rows of `#` and `.`, so a glyph can be
+fixed by eye without tooling.
+
+All three are drawn by hand rather than extracted from font files. The 5 × 8
+follows the HD44780 A00 ROM; the 3 × 5 and 4 × 6 follow the usual shapes for
+fonts of those sizes without being transcriptions of either. Three-pixel-wide
+capitals have inherent collisions — M against N in particular — which is a
+property of the size, not a bug to fix.
+
+The spec panel reports how many characters and lines actually fit, and warns
+when a font is too tall for the panel (5 × 8 on the seven-row CharliePlex, for
+instance).
 
 ## Filters
 
