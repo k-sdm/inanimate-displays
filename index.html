@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Inanimate Displays — VFD playground</title>
+<style>
+  :root {
+    --bg: #0a0c0b;
+    --panel: #121614;
+    --line: #232c28;
+    --ink: #d7e4de;
+    --dim: #7c8b84;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 24px 64px; }
+
+  header { margin-bottom: 16px; }
+  h1 { font-size: 14px; font-weight: 600; margin: 0 0 3px; letter-spacing: .02em; }
+  header .sub { color: var(--dim); font-size: 12px; }
+
+  .picker { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+  .picker button {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+    color: var(--dim); font: inherit; text-align: left; padding: 9px 13px;
+    cursor: pointer; line-height: 1.35;
+  }
+  .picker button b { display: block; font-weight: 600; font-size: 12px; color: var(--ink); }
+  .picker button span { font-size: 11px; }
+  .picker button[aria-pressed="true"] { border-color: #2f6b57; background: #14211c; }
+  .picker button[aria-pressed="true"] b { color: #8fffd6; }
+
+  .stage {
+    margin-bottom: 10px; padding: 34px 30px;
+    background: #0b0f0d; border: 1px solid var(--line); border-radius: 10px;
+  }
+  .stage svg { display: block; width: 100%; height: auto; }
+  .scaler { margin: 0 auto; }
+  #hitLayer rect { cursor: crosshair; }
+  #hitLayer { touch-action: none; }
+  .hint { color: var(--dim); font-size: 11px; margin: 0 0 20px; }
+
+  .controls {
+    display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 22px; align-items: start;
+  }
+  @media (max-width: 780px) { .controls { grid-template-columns: 1fr; } }
+
+  fieldset {
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 16px 16px; margin: 0; background: var(--panel);
+  }
+  legend { color: var(--dim); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 0 6px; }
+
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .row:first-of-type { margin-top: 2px; }
+  .row > label { color: var(--dim); width: 56px; flex: none; font-size: 12px; }
+
+  input[type="text"] {
+    flex: 1 1 auto; min-width: 0; background: #0a0d0c;
+    border: 1px solid var(--line); border-radius: 5px; color: var(--ink);
+    font: inherit; letter-spacing: .18em; padding: 8px 10px; outline: none;
+  }
+  input[type="text"]:focus { border-color: #2f6b57; box-shadow: 0 0 0 1px #2f6b5755; }
+  .count { color: var(--dim); font-size: 11px; width: 44px; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+  .count.full { color: #e0a15f; }
+
+  .seg { display: flex; gap: 4px; flex-wrap: wrap; }
+  .seg button {
+    background: #0a0d0c; border: 1px solid var(--line); color: var(--dim);
+    font: inherit; font-size: 12px; padding: 5px 11px; border-radius: 5px;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .seg button[aria-pressed="true"] { background: #14312a; border-color: #2f6b57; color: #8fffd6; }
+  .swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+  .toggles { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; color: var(--dim); }
+  .toggles label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; }
+  input[type="checkbox"] { accent-color: #2f6b57; }
+
+  button.link {
+    background: none; border: 1px solid var(--line); color: var(--dim);
+    font: inherit; font-size: 12px; padding: 5px 11px; border-radius: 5px; cursor: pointer;
+  }
+  button.link:hover { color: var(--ink); border-color: #38443f; }
+  button.link.primary { border-color: #2f6b57; color: #8fffd6; }
+  button.link:disabled { opacity: .45; cursor: default; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td { padding: 3px 0; vertical-align: top; }
+  td:first-child { color: var(--dim); padding-right: 12px; }
+  td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.rule td { border-top: 1px solid var(--line); padding-top: 8px; }
+
+  .notes { margin: 12px 0 0; padding-left: 15px; color: var(--dim); font-size: 11px; line-height: 1.6; }
+  footer { margin-top: 26px; color: var(--dim); font-size: 11px; line-height: 1.7; }
+  a { color: #8fbfae; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Inanimate Displays — VFD playground</h1>
+    <div class="sub">Newhaven character VFD modules, drawn to scale from their mechanical drawings. All three shown at the same mm-per-pixel.</div>
+  </header>
+
+  <div class="picker" id="picker"></div>
+
+  <div class="stage" id="stage">
+    <div class="scaler" id="scaler"><svg id="module" xmlns="http://www.w3.org/2000/svg"></svg></div>
+  </div>
+  <p class="hint">Click or drag across the dot matrix to toggle individual pixels. Drawn pixels sit on top of the typed text and are kept per module.</p>
+
+  <div class="controls">
+
+    <fieldset>
+      <legend>Message</legend>
+      <div class="row">
+        <label for="l1">Line 1</label>
+        <input id="l1" type="text" spellcheck="false" autocomplete="off" value="HELLO FROM THE VFD" />
+        <span class="count" id="c1"></span>
+      </div>
+      <div class="row">
+        <label for="l2">Line 2</label>
+        <input id="l2" type="text" spellcheck="false" autocomplete="off" value="2 lines of dot matrix" />
+        <span class="count" id="c2"></span>
+      </div>
+      <div class="row">
+        <label>Bright</label>
+        <div class="seg" id="brightness">
+          <button data-v="0.25">25%</button>
+          <button data-v="0.5">50%</button>
+          <button data-v="0.75">75%</button>
+          <button data-v="1" aria-pressed="true">100%</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Filter</label>
+        <div class="seg" id="filters"></div>
+      </div>
+      <div class="toggles">
+        <label><input type="checkbox" id="tDims" /> Dimensions</label>
+        <label><input type="checkbox" id="tGrid" checked /> Unlit dots</label>
+        <label><input type="checkbox" id="tCursor" checked /> Cursor</label>
+        <label><input type="checkbox" id="tBloom" checked /> Bloom</label>
+        <label><input type="checkbox" id="tScale" checked /> True relative size</label>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="link primary" id="save">Export SVG</button>
+        <button class="link" id="clearText">Clear text</button>
+        <button class="link" id="clearPixels">Clear pixels</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Geometry (mm)</legend>
+      <table id="spec"></table>
+      <ul class="notes" id="notes"></ul>
+    </fieldset>
+
+  </div>
+
+  <footer id="foot"></footer>
+
+</div>
+
+<script>
+"use strict";
+
+/* ================================================================== *
+ * Display definitions. Every number tagged in `labels` is dimensioned
+ * on the datasheet; anything derived or estimated is in `notes`.
+ * ================================================================== */
+const DISPLAYS = [
+  {
+    id: "m0220md",
+    part: "M0220MD-202MDAR1-3",
+    blurb: "20 x 2 &middot; 3.85 x 8.95 mm char",
+    cols: 20, rows: 2,
+    board:  { w: 146.00, h: 43.00 },
+    hole:   { d: 2.50, inset: 3.85 },
+    glass:  { x: 8.00, y: 4.75, w: 130.00, h: 33.50 },
+    window: 2.20,
+    active: { x: 21.62, y: 12.25, w: 101.75, h: 18.50 },
+    cell:   { w: 3.85, h: 8.95 },
+    dot:    { w: 0.65, h: 0.97 },
+    pitch:  { x: 0.80, y: 1.14 },
+    emitter: "#00ffae",
+    colourNote: "Green, CIE x=0.250 y=0.439",
+    labels: { boardW: "146.00", boardH: "43.00", glassW: "130.00", glassH: "33.50",
+              activeW: "101.75", activeH: "18.50", offX: "21.62", offY: "12.25" },
+    holeSpan: "138.30 x 35.30",
+    notes: [
+      "Char pitch 5.1526 and line pitch 9.55 are not called out — they follow from fitting 20 cells into the 101.75 span and 2 rows into 18.50.",
+      "Glass position confirmed by measuring the drawing's vector geometry: 8.01 / 4.82 / 129.97 against callouts of 8.00 / 4.75 / 130.00.",
+    ],
+  },
+  {
+    id: "m0220sd",
+    part: "M0220SD-202SDAR1",
+    blurb: "20 x 2 &middot; 2.35 x 5.34 mm char",
+    cols: 20, rows: 2,
+    board:  { w: 116.00, h: 37.00 },
+    hole:   { d: 3.50, inset: 4.00 },
+    glass:  { x: 10.55, y: 6.00, w: 96.90, h: 25.00 },
+    window: 1.80,
+    active: { x: 23.63, y: 12.75, w: 70.75, h: 11.50 },
+    cell:   { w: 2.35, h: 5.34 },
+    dot:    { w: 0.35, h: 0.535 },
+    pitch:  { x: 0.50, y: 0.6864 },
+    charPitchX: 3.60,
+    linePitchY: 6.16,
+    emitter: "#00ffc7",
+    colourNote: "Green 505 nm, CIE x=0.235 y=0.405",
+    labels: { boardW: "116", boardH: "37", glassW: "96.9", glassH: "25",
+              activeW: "70.75", activeH: "11.5", offX: "23.63", offY: "12.75" },
+    holeSpan: "108 x 29",
+    notes: [
+      "Char 2.35 x 5.34, char pitch 3.60 and line pitch 6.16 come from the general-specifications table, not the drawing.",
+      "Dot size and dot pitch are the one thing this datasheet never states. They are back-solved from the 5x8 cell at an assumed ~70% / ~78% fill.",
+      "Cross-checks that hold: 6.16 + 5.34 = 11.50 (the drawing's 11.5), (37 - 11.5) / 2 = 12.75, and 19 x 3.60 + 2.35 = 70.75.",
+    ],
+  },
+  {
+    id: "m0216md",
+    part: "M0216MD-162MDBR2-J",
+    blurb: "16 x 2 &middot; 3.85 x 9.22 mm char",
+    cols: 16, rows: 2,
+    board:  { w: 122.00, h: 44.00 },
+    hole:   { d: 3.50, inset: 3.50 },
+    glass:  { x: 7.00, y: 6.50, w: 108.00, h: 31.00 },
+    window: 2.40,
+    active: { x: 20.30, y: 11.40, w: 82.70, h: 19.00 },
+    cell:   { w: 3.85, h: 9.22 },
+    dot:    { w: 0.53, h: 0.89 },
+    pitch:  { x: 0.83, y: 1.19 },
+    emitter: "#00ffc7",
+    colourNote: "Blue-green, 505 nm",
+    labels: { boardW: "122", boardH: "44", glassW: "108", glassH: "31",
+              activeW: "82.7", activeH: "19", offX: "20.30", offY: "11.40" },
+    holeSpan: "115 x 37",
+    notes: [
+      "The panel table's \"Character Pitch 3.85 x 8.03\" is inconsistent with its own display size. Measuring the drawing's 1280 dots gives 5.24 x 10.24, so pitch here is derived from the 82.7 span instead.",
+      "Active-area origin 20.30 / 11.40 is measured off the drawing; the sheet only dimensions the 13.5 gap below it.",
+      "The drawn glass scales to ~110 wide against a 108 callout. The callout wins.",
+    ],
+  },
+];
+
+for (const d of DISPLAYS) {
+  if (d.charPitchX === undefined) d.charPitchX = (d.active.w - d.cell.w) / (d.cols - 1);
+  if (d.linePitchY === undefined) d.linePitchY = (d.active.h - d.cell.h) / (d.rows - 1);
+}
+
+/* ================================================================== *
+ * Noritake's five standard acrylic VFD filters.
+ * noritake-elec.com/products/value-added-services
+ *
+ * The datasheet gives no transmission curves, so each filter is modelled
+ * as a transmission colour multiplied into the emitter plus a broadband
+ * loss — enough to show the hue shift and the contrast gain, not a
+ * photometric prediction.
+ * ================================================================== */
+const FILTERS = [
+  { id: "none",  name: "None",   code: "",         tint: "#ffffff", t: 1.00, glass: null,      glassOp: 0 },
+  { id: "smoke", name: "Smoke",  code: "F3-05-XX-T", tint: "#c8ccca", t: 0.45, glass: "#0d100f", glassOp: 0.55 },
+  { id: "rose",  name: "Rose",   code: "F3-17-XX-T", tint: "#ff8fb0", t: 0.38, glass: "#1a0a10", glassOp: 0.50 },
+  { id: "aqua",  name: "Aqua",   code: "F3-16-XX-T", tint: "#6fe8ff", t: 0.62, glass: "#04161a", glassOp: 0.45 },
+  { id: "green", name: "Green",  code: "F3-12-XX-T", tint: "#7dff9a", t: 0.70, glass: "#04140a", glassOp: 0.40 },
+  { id: "blue",  name: "Blue",   code: "F3-01-XX-T", tint: "#4d7cff", t: 0.42, glass: "#050b1e", glassOp: 0.50 },
+];
+
+/* ================================================================== *
+ * 5x8 font. 8 rows of 5 columns, "/" separated, "#" = lit dot.
+ * Hand-transcribed HD44780 A00 shapes; row 8 is the descender row.
+ * ================================================================== */
+const GLYPHS = {
+  " ": "...../...../...../...../...../...../...../.....",
+  "!": "..#../..#../..#../..#../..#../...../..#../.....",
+  '"': ".#.#./.#.#./.#.#./...../...../...../...../.....",
+  "#": ".#.#./.#.#./#####/.#.#./#####/.#.#./.#.#./.....",
+  "$": "..#../.####/#.#../.###./..#.#/####./..#../.....",
+  "%": "##.../##..#/...#./..#../.#.../#..##/...##/.....",
+  "&": ".##../#..#./#.#../.#.../#.#.#/#..#./.##.#/.....",
+  "'": "..#../..#../.#.../...../...../...../...../.....",
+  "(": "...#./..#../.#.../.#.../.#.../..#../...#./.....",
+  ")": ".#.../..#../...#./...#./...#./..#../.#.../.....",
+  "*": "...../..#../#.#.#/.###./#.#.#/..#../...../.....",
+  "+": "...../..#../..#../#####/..#../..#../...../.....",
+  ",": "...../...../...../...../...../..##./..#../.#...",
+  "-": "...../...../...../#####/...../...../...../.....",
+  ".": "...../...../...../...../...../.##../.##../.....",
+  "/": "...../....#/...#./..#../.#.../#..../...../.....",
+  "0": ".###./#...#/#..##/#.#.#/##..#/#...#/.###./.....",
+  "1": "..#../.##../..#../..#../..#../..#../.###./.....",
+  "2": ".###./#...#/....#/...#./..#../.#.../#####/.....",
+  "3": "#####/...#./..#../...#./....#/#...#/.###./.....",
+  "4": "...#./..##./.#.#./#..#./#####/...#./...#./.....",
+  "5": "#####/#..../####./....#/....#/#...#/.###./.....",
+  "6": "..##./.#.../#..../####./#...#/#...#/.###./.....",
+  "7": "#####/....#/...#./..#../.#.../.#.../.#.../.....",
+  "8": ".###./#...#/#...#/.###./#...#/#...#/.###./.....",
+  "9": ".###./#...#/#...#/.####/....#/...#./.##../.....",
+  ":": "...../.##../.##../...../.##../.##../...../.....",
+  ";": "...../.##../.##../...../.##../..#../.#.../.....",
+  "<": "...#./..#../.#.../#..../.#.../..#../...#./.....",
+  "=": "...../...../#####/...../#####/...../...../.....",
+  ">": ".#.../..#../...#./....#/...#./..#../.#.../.....",
+  "?": ".###./#...#/....#/...#./..#../...../..#../.....",
+  "@": ".###./#...#/....#/.##.#/#.#.#/#.#.#/.###./.....",
+  "A": "..#../.#.#./#...#/#...#/#####/#...#/#...#/.....",
+  "B": "####./#...#/#...#/####./#...#/#...#/####./.....",
+  "C": ".###./#...#/#..../#..../#..../#...#/.###./.....",
+  "D": "###../#..#./#...#/#...#/#...#/#..#./###../.....",
+  "E": "#####/#..../#..../####./#..../#..../#####/.....",
+  "F": "#####/#..../#..../####./#..../#..../#..../.....",
+  "G": ".###./#...#/#..../#.###/#...#/#...#/.####/.....",
+  "H": "#...#/#...#/#...#/#####/#...#/#...#/#...#/.....",
+  "I": ".###./..#../..#../..#../..#../..#../.###./.....",
+  "J": "....#/....#/....#/....#/#...#/#...#/.###./.....",
+  "K": "#...#/#..#./#.#../##.../#.#../#..#./#...#/.....",
+  "L": "#..../#..../#..../#..../#..../#..../#####/.....",
+  "M": "#...#/##.##/#.#.#/#.#.#/#...#/#...#/#...#/.....",
+  "N": "#...#/#...#/##..#/#.#.#/#..##/#...#/#...#/.....",
+  "O": ".###./#...#/#...#/#...#/#...#/#...#/.###./.....",
+  "P": "####./#...#/#...#/####./#..../#..../#..../.....",
+  "Q": ".###./#...#/#...#/#...#/#.#.#/#..#./.##.#/.....",
+  "R": "####./#...#/#...#/####./#.#../#..#./#...#/.....",
+  "S": ".####/#..../#..../.###./....#/....#/####./.....",
+  "T": "#####/..#../..#../..#../..#../..#../..#../.....",
+  "U": "#...#/#...#/#...#/#...#/#...#/#...#/.###./.....",
+  "V": "#...#/#...#/#...#/#...#/#...#/.#.#./..#../.....",
+  "W": "#...#/#...#/#...#/#.#.#/#.#.#/##.##/#...#/.....",
+  "X": "#...#/#...#/.#.#./..#../.#.#./#...#/#...#/.....",
+  "Y": "#...#/#...#/#...#/.#.#./..#../..#../..#../.....",
+  "Z": "#####/....#/...#./..#../.#.../#..../#####/.....",
+  "[": ".###./.#.../.#.../.#.../.#.../.#.../.###./.....",
+  "\\": "...../#..../.#.../..#../...#./....#/...../.....",
+  "]": ".###./...#./...#./...#./...#./...#./.###./.....",
+  "^": "..#../.#.#./#...#/...../...../...../...../.....",
+  "_": "...../...../...../...../...../...../...../#####",
+  "`": ".#.../..#../...#./...../...../...../...../.....",
+  "a": "...../...../.###./....#/.####/#...#/.####/.....",
+  "b": "#..../#..../####./#...#/#...#/#...#/####./.....",
+  "c": "...../...../.###./#..../#..../#...#/.###./.....",
+  "d": "....#/....#/.####/#...#/#...#/#...#/.####/.....",
+  "e": "...../...../.###./#...#/#####/#..../.###./.....",
+  "f": "..##./.#..#/.#.../####./.#.../.#.../.#.../.....",
+  "g": "...../...../.####/#...#/#...#/.####/....#/.###.",
+  "h": "#..../#..../####./#...#/#...#/#...#/#...#/.....",
+  "i": "..#../...../.##../..#../..#../..#../.###./.....",
+  "j": "...#./...../..##./...#./...#./...#./#..#./.##..",
+  "k": "#..../#..../#..#./#.#../##.../#.#../#..#./.....",
+  "l": ".##../..#../..#../..#../..#../..#../.###./.....",
+  "m": "...../...../##.#./#.#.#/#.#.#/#...#/#...#/.....",
+  "n": "...../...../####./#...#/#...#/#...#/#...#/.....",
+  "o": "...../...../.###./#...#/#...#/#...#/.###./.....",
+  "p": "...../...../####./#...#/#...#/####./#..../#....",
+  "q": "...../...../.####/#...#/#...#/.####/....#/....#",
+  "r": "...../...../#.##./##..#/#..../#..../#..../.....",
+  "s": "...../...../.####/#..../.###./....#/####./.....",
+  "t": ".#.../.#.../####./.#.../.#.../.#..#/..##./.....",
+  "u": "...../...../#...#/#...#/#...#/#..##/.##.#/.....",
+  "v": "...../...../#...#/#...#/#...#/.#.#./..#../.....",
+  "w": "...../...../#...#/#...#/#.#.#/#.#.#/.#.#./.....",
+  "x": "...../...../#...#/.#.#./..#../.#.#./#...#/.....",
+  "y": "...../...../#...#/#...#/#...#/.####/....#/.###.",
+  "z": "...../...../#####/...#./..#../.#.../#####/.....",
+  "{": "...#./..#../..#../.#.../..#../..#../...#./.....",
+  "|": "..#../..#../..#../..#../..#../..#../..#../.....",
+  "}": ".#.../..#../..#../...#./..#../..#../.#.../.....",
+  "~": "...../...../.#.../#.#.#/...#./...../...../.....",
+};
+const UNKNOWN = "#####/#####/#####/#####/#####/#####/#####/#####";
+
+const bitmapCache = new Map();
+function glyph(ch) {
+  let bm = bitmapCache.get(ch);
+  if (bm) return bm;
+  bm = (GLYPHS[ch] || UNKNOWN).split("/").map((r) => r.split("").map((c) => c === "#"));
+  bitmapCache.set(ch, bm);
+  return bm;
+}
+
+/* ================================================================== *
+ * Helpers
+ * ================================================================== */
+const NS = "http://www.w3.org/2000/svg";
+const el = (name, attrs) => {
+  const node = document.createElementNS(NS, name);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  return node;
+};
+const n = (v) => Math.round(v * 1000) / 1000;
+
+const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const rgb2hex = (c) => "#" + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
+/** Subtractive filtering: emitter spectrum times filter transmission. */
+const multiply = (a, b) => {
+  const A = hex2rgb(a), B = hex2rgb(b);
+  return rgb2hex([0, 1, 2].map((i) => (A[i] * B[i]) / 255));
+};
+/** Push a colour toward white by `k` (0..1) — used for the crisp dot core. */
+const lighten = (h, k) => rgb2hex(hex2rgb(h).map((v) => v + (255 - v) * k));
+/** Push a colour toward black by `k` (0..1) — used for the outer bloom. */
+const darken = (h, k) => rgb2hex(hex2rgb(h).map((v) => v * (1 - k)));
+
+const svg = document.getElementById("module");
+const scaler = document.getElementById("scaler");
+
+function padFor(d) { return Math.max(5, d.board.h * 0.16); }
+const WIDEST = Math.max(...DISPLAYS.map((d) => d.board.w + padFor(d) * 2));
+
+const state = {
+  display: DISPLAYS[0],
+  filter: FILTERS[0],
+  lines: ["", ""],
+  brightness: 1,
+  dims: false,
+  grid: true,
+  cursor: true,
+  bloom: true,
+  trueScale: true,
+  focusLine: 0,
+  caret: 0,
+  /** Per-module pixel overrides: displayId -> Map("row:col:r:c" -> boolean). */
+  pixels: {},
+  painting: false,
+  paintValue: true,
+};
+
+const pix = () => (state.pixels[state.display.id] ||= new Map());
+const pkey = (row, col, r, c) => `${row}:${col}:${r}:${c}`;
+
+/** Emitter colour after the filter, split into the four render layers. */
+function palette() {
+  const base = multiply(state.display.emitter, state.filter.tint);
+  return {
+    core: lighten(base, 0.45),
+    tight: base,
+    wide: darken(base, 0.09),
+    wash: darken(base, 0.21),
+  };
+}
+
+/* ================================================================== *
+ * Static scaffolding — flat fills only, no strokes and no gradients.
+ * ================================================================== */
+function buildStatic() {
+  const D = state.display;
+  const F = state.filter;
+  const P = palette();
+  const PAD = padFor(D);
+
+  svg.textContent = "";
+  svg.setAttribute("viewBox", `${-PAD} ${-PAD} ${D.board.w + PAD * 2} ${D.board.h + PAD * 2}`);
+  scaler.style.width = state.trueScale
+    ? `${((D.board.w + PAD * 2) / WIDEST) * 100}%`
+    : "100%";
+
+  const defs = el("defs");
+  // Bloom radii scale with dot pitch so a dense module doesn't smear.
+  defs.appendChild(blur("fTight", D.pitch.y * 0.30));
+  defs.appendChild(blur("fWide", D.pitch.y * 1.40));
+  defs.appendChild(blur("fWash", D.pitch.y * 3.70));
+
+  const cellG = el("g", { id: "cellDots", fill: P.tight, "fill-opacity": "0.055" });
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 5; c++)
+      cellG.appendChild(el("rect", {
+        x: n(c * D.pitch.x), y: n(r * D.pitch.y),
+        width: n(D.dot.w), height: n(D.dot.h),
+      }));
+  defs.appendChild(cellG);
+  svg.appendChild(defs);
+
+  // PCB outline — flat rect
+  svg.appendChild(el("rect", { x: 0, y: 0, width: D.board.w, height: D.board.h, fill: "#1a211e" }));
+
+  // mounting holes — flat circles
+  for (const cx of [D.hole.inset, D.board.w - D.hole.inset])
+    for (const cy of [D.hole.inset, D.board.h - D.hole.inset])
+      svg.appendChild(el("circle", { cx, cy, r: D.hole.d / 2, fill: "#0a0c0b" }));
+
+  // VFD glass + inner phosphor window — flat rects
+  const g = D.glass;
+  svg.appendChild(el("rect", { x: g.x, y: g.y, width: g.w, height: g.h, fill: "#0b100e" }));
+  svg.appendChild(el("rect", {
+    x: g.x + D.window, y: g.y + D.window,
+    width: g.w - D.window * 2, height: g.h - D.window * 2, fill: "#050908",
+  }));
+
+  // acrylic filter tint over the glass, under the dots — this is the
+  // contrast gain: it darkens the background without dimming the emitter
+  if (F.glass)
+    svg.appendChild(el("rect", {
+      x: g.x, y: g.y, width: g.w, height: g.h, fill: F.glass, opacity: F.glassOp,
+    }));
+
+  svg.appendChild(el("g", { id: "washLayer" }));
+
+  const grid = el("g", { id: "gridLayer" });
+  forEachCell((x, y) => grid.appendChild(el("use", { href: "#cellDots", x: n(x), y: n(y) })));
+  svg.appendChild(grid);
+
+  svg.appendChild(el("g", { id: "bloomWide" }));
+  svg.appendChild(el("g", { id: "bloomTight" }));
+  svg.appendChild(el("g", { id: "litLayer" }));
+  svg.appendChild(el("g", { id: "dimLayer" }));
+  svg.appendChild(buildHitLayer());
+}
+
+function blur(id, sd) {
+  const f = el("filter", { id, x: "-60%", y: "-160%", width: "220%", height: "420%" });
+  f.appendChild(el("feGaussianBlur", { stdDeviation: n(sd) }));
+  return f;
+}
+
+/** Call fn(x, y, col, row) with the top-left of each character cell. */
+function forEachCell(fn) {
+  const D = state.display;
+  for (let row = 0; row < D.rows; row++)
+    for (let col = 0; col < D.cols; col++)
+      fn(D.active.x + col * D.charPitchX, D.active.y + row * D.linePitchY, col, row);
+}
+
+/* ---- click targets, one per dot, sized to the full pitch cell ---- */
+function buildHitLayer() {
+  const D = state.display;
+  const layer = el("g", { id: "hitLayer", fill: "transparent", "pointer-events": "all" });
+  forEachCell((x, y, col, row) => {
+    for (let r = 0; r < 8; r++)
+      for (let c = 0; c < 5; c++)
+        layer.appendChild(el("rect", {
+          x: n(x + c * D.pitch.x - (D.pitch.x - D.dot.w) / 2),
+          y: n(y + r * D.pitch.y - (D.pitch.y - D.dot.h) / 2),
+          width: n(D.pitch.x), height: n(D.pitch.y),
+          "data-k": pkey(row, col, r, c),
+        }));
+  });
+  return layer;
+}
+
+/* ================================================================== *
+ * The lit dots
+ * ================================================================== */
+function renderText() {
+  const D = state.display;
+  const P = palette();
+  const overrides = pix();
+  const litLayer = svg.querySelector("#litLayer");
+  litLayer.textContent = "";
+  litLayer.setAttribute("fill", P.core);
+
+  forEachCell((x, y, col, row) => {
+    const bm = glyph(state.lines[row][col] ?? " ");
+    for (let r = 0; r < 8; r++)
+      for (let c = 0; c < 5; c++) {
+        const forced = overrides.get(pkey(row, col, r, c));
+        const on = forced === undefined ? bm[r][c] : forced;
+        if (!on) continue;
+        litLayer.appendChild(el("rect", {
+          x: n(x + c * D.pitch.x), y: n(y + r * D.pitch.y),
+          width: n(D.dot.w), height: n(D.dot.h),
+        }));
+      }
+  });
+
+  if (state.cursor) {
+    const col = Math.min(state.caret, D.cols - 1);
+    const cur = el("rect", {
+      x: n(D.active.x + col * D.charPitchX),
+      y: n(D.active.y + state.focusLine * D.linePitchY + 7 * D.pitch.y),
+      width: n(D.cell.w), height: n(D.dot.h),
+    });
+    cur.appendChild(el("animate", {
+      attributeName: "opacity", values: "1;1;0;0", dur: "1.06s", repeatCount: "indefinite",
+    }));
+    litLayer.appendChild(cur);
+  }
+
+  paintBloom(P);
+  applyBrightness();
+  document.getElementById("clearPixels").disabled = overrides.size === 0;
+}
+
+function paintBloom(P) {
+  const wide = svg.querySelector("#bloomWide");
+  const tight = svg.querySelector("#bloomTight");
+  const wash = svg.querySelector("#washLayer");
+  wide.textContent = tight.textContent = wash.textContent = "";
+  if (!state.bloom) return;
+
+  const src = svg.querySelector("#litLayer");
+  const mk = (filter, fill, opacity) => {
+    const clone = src.cloneNode(true);
+    clone.removeAttribute("id");
+    clone.setAttribute("filter", `url(#${filter})`);
+    clone.setAttribute("fill", fill);
+    clone.setAttribute("opacity", opacity);
+    return clone;
+  };
+  tight.appendChild(mk("fTight", P.tight, 0.95));
+  wide.appendChild(mk("fWide", P.wide, 0.5));
+  wash.appendChild(mk("fWash", P.wash, 0.28));
+}
+
+function applyBrightness() {
+  // The acrylic filter costs broadband transmission on top of the
+  // controller's own 4-step luminance setting.
+  const b = state.brightness * state.filter.t;
+  svg.querySelector("#litLayer").setAttribute("opacity", 0.35 + 0.65 * b);
+  svg.querySelector("#bloomTight").setAttribute("opacity", b);
+  svg.querySelector("#bloomWide").setAttribute("opacity", b * b);
+  svg.querySelector("#washLayer").setAttribute("opacity", b * b);
+  svg.querySelector("#gridLayer").setAttribute("opacity", state.grid ? 1 : 0);
+}
+
+/* ================================================================== *
+ * Dimension overlay
+ * ================================================================== */
+const DIMC = "#5fd6ff";
+function renderDims() {
+  const D = state.display;
+  const layer = svg.querySelector("#dimLayer");
+  layer.textContent = "";
+  if (!state.dims) return;
+
+  const s = D.board.h / 43;
+  layer.setAttribute("stroke", DIMC);
+  layer.setAttribute("fill", DIMC);
+  layer.setAttribute("stroke-width", n(0.12 * s));
+  layer.setAttribute("font-size", n(1.7 * s));
+  layer.setAttribute("font-family", "ui-monospace, monospace");
+
+  const B = D.board, G = D.glass, A = D.active, L = D.labels;
+  hDim(layer, s, 0, B.w, -4.4 * s, L.boardW);
+  hDim(layer, s, G.x, G.x + G.w, -2.0 * s, L.glassW);
+  hDim(layer, s, A.x, A.x + A.w, B.h + 2.4 * s, L.activeW);
+  hDim(layer, s, 0, A.x, B.h + 5.0 * s, L.offX);
+  vDim(layer, s, 0, B.h, B.w + 4.6 * s, L.boardH);
+  vDim(layer, s, G.y, G.y + G.h, B.w + 2.2 * s, L.glassH);
+  vDim(layer, s, A.y, A.y + A.h, -2.2 * s, L.activeH);
+  vDim(layer, s, 0, A.y, -4.8 * s, L.offY);
+
+  const cx = A.x + 2 * D.charPitchX, cy = A.y, m = 0.25 * s;
+  layer.appendChild(el("rect", {
+    x: n(cx - m), y: n(cy - m), width: n(D.cell.w + m * 2), height: n(D.cell.h + m * 2),
+    fill: "none", stroke: DIMC, "stroke-width": n(0.12 * s),
+    "stroke-dasharray": `${n(0.5 * s)} ${n(0.4 * s)}`,
+  }));
+  layer.appendChild(text(cx + D.cell.w / 2, cy - 1.1 * s, `${D.cell.w} x ${D.cell.h}`, "middle"));
+}
+
+const tick = (x1, y1, x2, y2) => el("line", { x1: n(x1), y1: n(y1), x2: n(x2), y2: n(y2) });
+function text(x, y, str, anchor) {
+  const t = el("text", { x: n(x), y: n(y), "text-anchor": anchor || "start", stroke: "none" });
+  t.textContent = str;
+  return t;
+}
+function hDim(layer, s, x1, x2, y, label) {
+  layer.appendChild(tick(x1, y, x2, y));
+  layer.appendChild(tick(x1, y - 0.7 * s, x1, y + 0.7 * s));
+  layer.appendChild(tick(x2, y - 0.7 * s, x2, y + 0.7 * s));
+  layer.appendChild(text((x1 + x2) / 2, y - 0.9 * s, label, "middle"));
+}
+function vDim(layer, s, y1, y2, x, label) {
+  layer.appendChild(tick(x, y1, x, y2));
+  layer.appendChild(tick(x - 0.7 * s, y1, x + 0.7 * s, y1));
+  layer.appendChild(tick(x - 0.7 * s, y2, x + 0.7 * s, y2));
+  const t = text(x, (y1 + y2) / 2, label, "middle");
+  t.setAttribute("transform", `rotate(-90 ${n(x)} ${n((y1 + y2) / 2)})`);
+  t.setAttribute("dy", n(-0.6 * s));
+  layer.appendChild(t);
+}
+
+/* ================================================================== *
+ * Pixel drawing
+ * ================================================================== */
+function paintAt(target, value) {
+  const k = target?.dataset?.k;
+  if (!k) return;
+  const overrides = pix();
+  const D = state.display;
+  const [row, col, r, c] = k.split(":").map(Number);
+  // Fall back to the glyph so a "clean" toggle returns to the typed text.
+  const base = glyph(state.lines[row][col] ?? " ")[r][c];
+  if (value === base) overrides.delete(k);
+  else overrides.set(k, value);
+  renderText();
+}
+
+document.getElementById("stage").addEventListener("pointerdown", (e) => {
+  const hit = e.target.closest?.("#hitLayer rect");
+  if (!hit) {
+    // clicking the board (not the matrix) drops you into the nearest line
+    const box = svg.getBoundingClientRect();
+    inputs[(e.clientY - box.top) / box.height > 0.5 ? 1 : 0].focus();
+    return;
+  }
+  e.preventDefault();
+  const k = hit.dataset.k;
+  const [row, col, r, c] = k.split(":").map(Number);
+  const overrides = pix();
+  const base = glyph(state.lines[row][col] ?? " ")[r][c];
+  const current = overrides.has(k) ? overrides.get(k) : base;
+  state.painting = true;
+  state.paintValue = !current;
+  paintAt(hit, state.paintValue);
+});
+
+document.getElementById("stage").addEventListener("pointerover", (e) => {
+  if (!state.painting) return;
+  paintAt(e.target.closest?.("#hitLayer rect"), state.paintValue);
+});
+window.addEventListener("pointerup", () => { state.painting = false; });
+
+/* ================================================================== *
+ * Controls
+ * ================================================================== */
+const inputs = [document.getElementById("l1"), document.getElementById("l2")];
+const counts = [document.getElementById("c1"), document.getElementById("c2")];
+
+function syncFromInputs() {
+  const cols = state.display.cols;
+  inputs.forEach((inp, i) => {
+    state.lines[i] = inp.value.slice(0, cols);
+    counts[i].textContent = `${inp.value.length}/${cols}`;
+    counts[i].classList.toggle("full", inp.value.length >= cols);
+    inp.title = inp.value.length > cols
+      ? `${inp.value.length - cols} character(s) past the ${cols}-column display` : "";
+  });
+  renderText();
+}
+
+inputs.forEach((inp, i) => {
+  const track = () => {
+    state.focusLine = i;
+    state.caret = inp.selectionStart ?? inp.value.length;
+    syncFromInputs();
+  };
+  ["input", "keyup", "click", "focus"].forEach((ev) => inp.addEventListener(ev, track));
+});
+
+/* display picker */
+const picker = document.getElementById("picker");
+DISPLAYS.forEach((d) => {
+  const b = document.createElement("button");
+  b.dataset.id = d.id;
+  b.innerHTML = `<b>${d.part}</b><span>${d.blurb}</span>`;
+  b.addEventListener("click", () => selectDisplay(d));
+  picker.appendChild(b);
+});
+
+/* filter picker */
+const filterBar = document.getElementById("filters");
+FILTERS.forEach((f) => {
+  const b = document.createElement("button");
+  b.dataset.id = f.id;
+  b.title = f.code ? `Noritake ${f.code}` : "No filter";
+  b.innerHTML = f.id === "none"
+    ? f.name
+    : `<i class="swatch" style="background:${f.tint}"></i>${f.name}`;
+  b.addEventListener("click", () => selectFilter(f));
+  filterBar.appendChild(b);
+});
+
+function selectFilter(f) {
+  state.filter = f;
+  [...filterBar.children].forEach((b) => b.setAttribute("aria-pressed", b.dataset.id === f.id));
+  redraw();
+}
+
+function selectDisplay(d) {
+  state.display = d;
+  [...picker.children].forEach((b) => b.setAttribute("aria-pressed", b.dataset.id === d.id));
+  redraw();
+  renderSpec();
+}
+
+function redraw() {
+  buildStatic();
+  syncFromInputs();
+  renderDims();
+}
+
+document.getElementById("brightness").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  [...e.currentTarget.children].forEach((b) => b.setAttribute("aria-pressed", b === btn));
+  state.brightness = parseFloat(btn.dataset.v);
+  applyBrightness();
+});
+
+const toggle = (id, key, after) =>
+  document.getElementById(id).addEventListener("change", (e) => {
+    state[key] = e.target.checked;
+    after();
+  });
+toggle("tDims", "dims", renderDims);
+toggle("tGrid", "grid", applyBrightness);
+toggle("tCursor", "cursor", renderText);
+toggle("tBloom", "bloom", renderText);
+toggle("tScale", "trueScale", redraw);
+
+document.getElementById("clearText").addEventListener("click", () => {
+  inputs.forEach((i) => (i.value = ""));
+  inputs[0].focus();
+  syncFromInputs();
+});
+
+document.getElementById("clearPixels").addEventListener("click", () => {
+  pix().clear();
+  renderText();
+});
+
+/* ---- SVG export ---- */
+document.getElementById("save").addEventListener("click", () => {
+  const D = state.display, PAD = padFor(D);
+  const out = svg.cloneNode(true);
+  out.setAttribute("xmlns", NS);
+  out.setAttribute("width", `${D.board.w + PAD * 2}mm`);
+  out.setAttribute("height", `${D.board.h + PAD * 2}mm`);
+  out.querySelector("#hitLayer")?.remove();          // interaction targets aren't artwork
+  out.querySelectorAll("animate").forEach((a) => a.remove());   // static cursor
+  out.insertBefore(
+    el("rect", { x: -PAD, y: -PAD, width: D.board.w + PAD * 2, height: D.board.h + PAD * 2, fill: "#0b0f0d" }),
+    out.firstChild.nextSibling
+  );
+  const suffix = state.filter.id === "none" ? "" : `-${state.filter.id}`;
+  download(new XMLSerializer().serializeToString(out), `${D.id}${suffix}.svg`, "image/svg+xml");
+});
+
+function download(data, filename, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([data], { type }));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ---- spec readout ---- */
+const round2 = (v) => (Math.round(v * 100) / 100).toString();
+function renderSpec() {
+  const D = state.display;
+  const B = D.board, G = D.glass, A = D.active;
+  const areaB = B.w * B.h, areaG = G.w * G.h, areaA = A.w * A.h;
+  const pct = (v) => `${((v / areaB) * 100).toFixed(1)}%`;
+  const rows = [
+    ["Part", D.part],
+    ["Format", `${D.cols} x ${D.rows}, 5x8 dots`],
+    ["Colour", D.colourNote],
+    ["rule"],
+    ["PCB outline", `${B.w} × ${B.h}`],
+    ["VFD glass", `${G.w} × ${G.h}`],
+    ["Active dot area", `${A.w} × ${A.h}`],
+    ["Character cell", `${D.cell.w} × ${D.cell.h}`],
+    ["Dot", `${D.dot.w} × ${D.dot.h}`],
+    ["Dot pitch", `${D.pitch.x} × ${D.pitch.y}`],
+    ["Char pitch", `${round2(D.charPitchX)} × ${round2(D.linePitchY)}`],
+    ["Mounting holes", `4 × ø${D.hole.d}, ${D.holeSpan}`],
+    ["rule"],
+    ["PCB area", `${areaB.toFixed(0)} mm²`],
+    ["Glass / PCB", pct(areaG)],
+    ["Active / PCB", pct(areaA)],
+    ["Active / glass", `${((areaA / areaG) * 100).toFixed(1)}%`],
+    ["Resolution", `${D.cols * 5} × ${D.rows * 8} dots`],
+  ];
+  const t = document.getElementById("spec");
+  t.textContent = "";
+  for (const [k, v] of rows) {
+    const tr = document.createElement("tr");
+    if (k === "rule") {
+      tr.className = "rule";
+      tr.append(document.createElement("td"), document.createElement("td"));
+      t.appendChild(tr);
+      continue;
+    }
+    const a = document.createElement("td"), b = document.createElement("td");
+    a.textContent = k; b.textContent = v;
+    tr.append(a, b);
+    t.appendChild(tr);
+  }
+
+  const ul = document.getElementById("notes");
+  ul.textContent = "";
+  for (const note of D.notes) {
+    const li = document.createElement("li");
+    li.textContent = note;
+    ul.appendChild(li);
+  }
+
+  document.getElementById("foot").innerHTML =
+    "Dimensions come from each datasheet's mechanical drawing and specification tables; anything derived or estimated is listed above. " +
+    "Glyphs are hand-transcribed HD44780 A00 shapes, not the factory ROM. The inner phosphor window inset is eyeballed on all three. " +
+    'Filters follow Noritake\'s five standard acrylics (<a href="https://www.noritake-elec.com/products/value-added-services" target="_blank" rel="noreferrer">value-added services</a>); ' +
+    "no transmission curves are published, so each is modelled as a transmission colour multiplied into the emitter plus a broadband loss.";
+}
+
+selectFilter(FILTERS[0]);
+selectDisplay(DISPLAYS[0]);
+inputs[0].focus();
+inputs[0].setSelectionRange(inputs[0].value.length, inputs[0].value.length);
+</script>
+</body>
+</html>
