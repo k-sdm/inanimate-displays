@@ -116,16 +116,7 @@
           <input id="l2" type="text" spellcheck="false" autocomplete="off" value="WORLD" />
           <span class="count" id="c2"></span>
         </div>
-        <div class="row">
-          <label>Bright</label>
-          <div class="seg" id="brightness">
-            <button data-v="0.25">25%</button>
-            <button data-v="0.5">50%</button>
-            <button data-v="0.75">75%</button>
-            <button data-v="1" aria-pressed="true">100%</button>
-          </div>
-        </div>
-        <div class="row">
+        <div class="row" id="filterRow">
           <label>Filter</label>
           <div class="seg" id="filters"></div>
         </div>
@@ -591,7 +582,6 @@ const state = {
   display: DISPLAYS[0],
   filter: FILTERS[0],
   lines: ["", ""],
-  brightness: 1,
   dims: false, grid: true, bloom: true, trueScale: true,
   /** Per-module pixel overrides: displayId -> Map("py:px" -> boolean). */
   pixels: {},
@@ -798,7 +788,7 @@ function renderText() {
     }
 
   paintBloom(P);
-  applyBrightness();
+  applyLevels();
   document.getElementById("clearPixels").disabled = overrides.size === 0;
 }
 
@@ -827,8 +817,9 @@ function paintBloom(P) {
   wash.appendChild(mk("fWash", P.wash, 0.28));
 }
 
-function applyBrightness() {
-  const b = state.brightness * state.filter.t;
+function applyLevels() {
+  // Panels run at full output; the only thing that dims them is a filter.
+  const b = state.filter.t;
   const gain = state.display.bloomGain ?? 1;
   const cap = (v) => Math.min(1, v);
   svg.querySelector("#litLayer").setAttribute("opacity", 0.35 + 0.65 * b);
@@ -1061,6 +1052,14 @@ function selectFilter(f) {
 function selectDisplay(d) {
   state.display = d;
   [...picker.children].forEach((b) => b.setAttribute("aria-pressed", b.dataset.id === d.id));
+  // Acrylic contrast filters are a VFD accessory; nobody bonds one to a
+  // CharliePlex board. Hide the control, and drop any filter on the way out.
+  const filtered = d.kind === "vfd";
+  document.getElementById("filterRow").classList.toggle("hidden", !filtered);
+  if (!filtered && state.filter !== FILTERS[0]) {
+    state.filter = FILTERS[0];
+    [...filterBar.children].forEach((b) => b.setAttribute("aria-pressed", b.dataset.id === FILTERS[0].id));
+  }
   buildConfig();
   redraw();
   renderSpec();
@@ -1072,21 +1071,13 @@ function redraw() {
   renderDims();
 }
 
-document.getElementById("brightness").addEventListener("click", (e) => {
-  const btn = e.target.closest("button");
-  if (!btn) return;
-  [...e.currentTarget.children].forEach((b) => b.setAttribute("aria-pressed", b === btn));
-  state.brightness = parseFloat(btn.dataset.v);
-  applyBrightness();
-});
-
 const toggle = (id, key, after) =>
   document.getElementById(id).addEventListener("change", (e) => {
     state[key] = e.target.checked;
     after();
   });
 toggle("tDims", "dims", renderDims);
-toggle("tGrid", "grid", applyBrightness);
+toggle("tGrid", "grid", applyLevels);
 toggle("tBloom", "bloom", renderText);
 toggle("tScale", "trueScale", redraw);
 

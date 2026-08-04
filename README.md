@@ -53,7 +53,7 @@ real relative sizes are directly comparable.
 - **Draw** by clicking or dragging across the matrix. Pixel overrides sit on top
   of the typed text and are kept per module.
 - **Configure** resolution, pitch, block count and dot shape on the LED modules.
-- **Filter** through Noritake's five standard acrylics.
+- **Filter** through Noritake's five standard acrylics, on the VFDs.
 - **Dimensions** overlays the datasheet callouts on the drawing.
 - **Export SVG** writes the current state out unitless at **1 px = 1 mm**.
 
@@ -103,8 +103,8 @@ Noritake sells five standard acrylic VFD filters — Smoke Gray (F3-05), Rose
 (F3-17), Aqua (F3-16), Green (F3-12), Blue (F3-01). No transmission curves are
 published, so each is modelled as a transmission colour multiplied into the
 emitter plus a broadband loss: enough to show the hue shift and the contrast
-gain, not a photometric prediction. They apply to the other panels too, where
-the same physics holds for any acrylic contrast filter.
+gain, not a photometric prediction. They are a VFD accessory, so the control
+only appears on the VFD modules.
 
 Emitter colours come from each datasheet: CIE x=0.250 y=0.439 and x=0.235
 y=0.405 for the VFDs, InGaN blue at 468 nm peak / 470 nm dominant for the LEDs.
