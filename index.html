@@ -68,6 +68,7 @@
   .toggles { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; color: var(--dim); }
   .toggles label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; }
   input[type="checkbox"] { accent-color: #2f6b57; }
+  input[type="range"] { flex: 1 1 auto; min-width: 0; accent-color: #2f6b57; background: none; }
 
   button.link { background: none; border: 1px solid var(--line); color: var(--dim); font: inherit; font-size: 12px; padding: 5px 11px; border-radius: 5px; cursor: pointer; }
   button.link:hover { color: var(--ink); border-color: #38443f; }
@@ -136,6 +137,25 @@
       <fieldset id="configBox" class="hidden">
         <legend>Configuration</legend>
         <div id="configRows"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Random fill</legend>
+        <div class="row">
+          <label for="density">Density</label>
+          <input type="range" id="density" min="0" max="100" step="1" value="35" />
+          <span class="count" id="densityVal"></span>
+        </div>
+        <div class="row">
+          <label for="breathe">Breathing</label>
+          <input type="range" id="breathe" min="0" max="100" step="1" value="35" />
+          <span class="count" id="breatheVal"></span>
+        </div>
+        <div class="row">
+          <button class="link" id="randomFill">Fill</button>
+          <button class="link" id="scatter">Scatter</button>
+          <button class="link" id="reroll">Re-roll breathing</button>
+        </div>
       </fieldset>
     </div>
 
@@ -822,11 +842,15 @@ const state = {
   dims: false, grid: true, bloom: true, trueScale: true,
   /** Per-module pixel overrides: displayId -> Map("py:px" -> boolean). */
   pixels: {},
+  /** Per-module breathing pixels: displayId -> Map("py:px" -> phase 0..1). */
+  breathing: {},
   painting: false, paintValue: true,
   G: null,
 };
 
 const pix = () => (state.pixels[state.display.id] ||= new Map());
+/** Which lit pixels breathe, and at what phase: key -> 0..1. */
+const breath = () => (state.breathing[state.display.id] ||= new Map());
 const pkey = (px, py) => `${py}:${px}`;
 
 function widest() {
@@ -931,6 +955,15 @@ function buildStatic() {
   scaler.style.width = state.trueScale ? `${((G.board.w + PAD * 2) / widest()) * 100}%` : "100%";
 
   const defs = el("defs");
+  // Kept inside the SVG rather than the page stylesheet so an exported
+  // file still breathes on its own. CSS animation, not SMIL: the bloom
+  // layers are clones of the lit layer, and only CSS keeps a clone in
+  // phase with its original.
+  const keyframes = el("style");
+  keyframes.textContent =
+    "@keyframes breathe{0%,100%{opacity:1}50%{opacity:0.16}}" +
+    ".breathe{animation-name:breathe;animation-iteration-count:infinite;animation-timing-function:ease-in-out}";
+  defs.appendChild(keyframes);
   defs.appendChild(blur("fTight", G.bloomUnit * 0.30));
   defs.appendChild(blur("fWide", G.bloomUnit * 1.40));
   defs.appendChild(blur("fWash", G.bloomUnit * 3.70));
@@ -1032,11 +1065,23 @@ function renderText() {
   litLayer.textContent = "";
   litLayer.setAttribute("fill", P.core);
 
+  const br = breath();
   for (let py = 0; py < G.pxRows; py++)
     for (let px = 0; px < G.pxCols; px++) {
-      const forced = overrides.get(pkey(px, py));
+      const k = pkey(px, py);
+      const forced = overrides.get(k);
       if (forced === undefined ? !baseBit(px, py) : !forced) continue;
-      litLayer.appendChild(dotNode(px, py));
+      const node = dotNode(px, py);
+      const phase = br.get(k);
+      if (phase !== undefined) {
+        // Stagger duration and start so the panel shimmers rather than pulsing
+        // as one block. A negative delay starts the cycle part-way through.
+        const dur = 2.4 + phase * 3;
+        node.setAttribute("class", "breathe");
+        node.setAttribute("style",
+          `animation-duration:${dur.toFixed(2)}s;animation-delay:-${(phase * dur).toFixed(2)}s`);
+      }
+      litLayer.appendChild(node);
     }
 
   paintBloom(P);
@@ -1182,6 +1227,7 @@ function paintAt(hit, value) {
   // Falling back to the glyph means a "clean" toggle returns to the text.
   if (value === baseBit(hit.px, hit.py)) overrides.delete(k);
   else overrides.set(k, value);
+  if (!value) breath().delete(k);          // switched off by hand, so stop it
   renderText();
 }
 
@@ -1341,6 +1387,61 @@ document.getElementById("clearText").addEventListener("click", () => {
 });
 document.getElementById("clearPixels").addEventListener("click", () => {
   pix().clear();
+  breath().clear();
+  renderText();
+});
+
+/* ---- random fill ---- */
+const density = document.getElementById("density");
+const breatheAmt = document.getElementById("breathe");
+function syncSliders() {
+  document.getElementById("densityVal").textContent = `${density.value}%`;
+  document.getElementById("breatheVal").textContent = `${breatheAmt.value}%`;
+}
+density.addEventListener("input", syncSliders);
+breatheAmt.addEventListener("input", syncSliders);
+
+/**
+ * Roll every pixel against the density.
+ *   replace — wipes first, so the result is only the noise
+ *   scatter — only ever turns pixels on, leaving the text underneath
+ */
+function randomFill(replace) {
+  const G = state.G, overrides = pix(), br = breath();
+  const d = +density.value / 100, b = +breatheAmt.value / 100;
+  if (replace) { overrides.clear(); br.clear(); }
+
+  for (let py = 0; py < G.pxRows; py++)
+    for (let px = 0; px < G.pxCols; px++) {
+      const k = pkey(px, py);
+      if (Math.random() >= d) {
+        if (!replace) continue;                       // scatter never darkens
+        if (baseBit(px, py)) overrides.set(k, false); // hide the text under it
+        else overrides.delete(k);
+        continue;
+      }
+      overrides.set(k, true);
+      if (Math.random() < b) br.set(k, Math.random());
+      else br.delete(k);
+    }
+  renderText();
+}
+
+document.getElementById("randomFill").addEventListener("click", () => randomFill(true));
+document.getElementById("scatter").addEventListener("click", () => randomFill(false));
+
+/** Re-pick which of the currently lit pixels breathe, leaving the picture alone. */
+document.getElementById("reroll").addEventListener("click", () => {
+  const G = state.G, overrides = pix(), br = breath();
+  const b = +breatheAmt.value / 100;
+  br.clear();
+  for (let py = 0; py < G.pxRows; py++)
+    for (let px = 0; px < G.pxCols; px++) {
+      const k = pkey(px, py);
+      const forced = overrides.get(k);
+      const lit = forced === undefined ? baseBit(px, py) : forced;
+      if (lit && Math.random() < b) br.set(k, Math.random());
+    }
   renderText();
 });
 
@@ -1451,6 +1552,7 @@ function renderSpec() {
     "Exported SVGs are unitless at 1 px = 1 mm.";
 }
 
+syncSliders();
 selectFilter(FILTERS[0]);
 selectDisplay(DISPLAYS[0]);
 </script>

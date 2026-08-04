@@ -54,6 +54,13 @@ real relative sizes are directly comparable.
   font-plus-integer-scale model firmware uses (`setTextSize()`).
 - **Draw** by clicking or dragging across the matrix. Pixel overrides sit on top
   of the typed text and are kept per module.
+- **Random fill** rolls every pixel against a density slider. *Fill* replaces
+  the picture with noise, *Scatter* only ever turns pixels on so the text stays
+  legible underneath, and *Re-roll breathing* re-picks the animated pixels
+  without disturbing the pattern.
+- **Breathing** animates a share of the lit pixels, each with its own period
+  and phase so the panel shimmers rather than pulsing as one block. It survives
+  export — the keyframes live inside the SVG.
 - **Configure** resolution, pitch, block count and dot shape on the LED modules.
 - **Filter** through Noritake's five standard acrylics, on the VFDs.
 - **Dimensions** overlays the datasheet callouts on the drawing.
