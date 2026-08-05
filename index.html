@@ -260,6 +260,36 @@ const DISPLAYS = [
     ],
   },
   {
+    kind: "vfd", id: "m202md12ba", part: "Futaba M202MD12BA",
+    blurb: "VFD &middot; 20 x 2 &middot; 5.5 x 10.5 mm char, 5x7",
+    cols: 20, rows: 2,
+    dots:   { w: 5, h: 7 },              // 5x7 cell, not the 5x8 of the Newhaven parts
+    board:  { w: 190.00, h: 64.00 },
+    hole:   { d: 4.00, inset: 4.00 },
+    glass:  { x: 21.95, y: 17.55, w: 146.10, h: 29.00 },   // the dimensioned display area
+    window: 0,
+    active: { x: 21.95, y: 17.55, w: 146.10, h: 26.00 },
+    cell:   { w: 5.50, h: 10.50 },
+    dot:    { w: 0.868, h: 1.236 },
+    pitch:  { x: 1.158, y: 1.544 },
+    charPitchX: 7.40, linePitchY: 15.50,
+    marks: { y: 43.55, h: 3.00, w: 2.60 },  // the triangle-mark strip
+    emitter: "#00ffc7",
+    colourNote: "Green 505 nm",
+    labels: { boardW: "190", boardH: "64", glassW: "146.1", glassH: "29.0",
+              activeW: "146.1", activeH: "26.0", offX: "21.95", offY: "17.55" },
+    holeSpan: "182 x 56",
+    notes: [
+      "Outer 190 x 64 x 27, display area 146.1 x 29.0, character 5.5 x 10.5 on a 7.4 x 15.5 pitch, all from Futaba AN-E-2258 and FIGURE-1.",
+      "Those close on themselves: 19 x 7.4 + 5.5 = 146.1, exactly the stated display-area width.",
+      "This one is 5x7, not 5x8. Its font is the 5x8 table with descending glyphs shifted up a row to land inside seven; \"j\" is redrawn by hand because its dot already occupies the top row.",
+      "Dot size and pitch are not stated. Back-solved from the 5.5 x 10.5 cell at an assumed ~75% / ~80% fill.",
+      "Two text rows come to 26.0 of the 29.0 display area. The remaining 3.0 is the triangle-mark strip, drawn below the second row — the sheet addresses the marks by the second row's digit addresses but never says which side of the text they sit on.",
+      "The display area's position along the 190 length is not dimensioned, so it is centred. Across the 64 it is placed at the drawing's 17.55.",
+      "Requested as \"M202LD12A\"; the datasheet supplied is the M202MD12BA, with the Futaba 202-MD-12GK tube.",
+    ],
+  },
+  {
     kind: "charlie", id: "charliewing", part: "Custom Charlieplexed LED Matrix",
     blurb: "LED &middot; 15 x 7 &middot; chip LEDs at 45&deg;",
     cols: 15, rows: 7,
@@ -696,11 +726,34 @@ const G4X6 = {
   "~": "..../..../.#.#/#.#./..../....",
 };
 
+/* 5x7 — what a 5x7 character module shows, derived from the 5x8 table.
+   Glyphs that use the descender row are shifted up one so the descender
+   lands inside seven rows; the rest simply lose their blank eighth row. */
+const G5X7_FIX = {
+  // "j" is the one glyph whose top row is already occupied, so shifting it
+  // up would throw away the dot. Drawn to fit seven rows instead.
+  "j": "...#./...../...#./...#./...#./#..#./.##..",
+};
+function derive5x7(src) {
+  const out = {};
+  const blank = ".".repeat(5);
+  for (const [ch, rows] of Object.entries(src)) {
+    if (G5X7_FIX[ch]) { out[ch] = G5X7_FIX[ch]; continue; }
+    const r = rows.split("/");
+    const descends = r[7] !== blank;
+    out[ch] = (descends && r[0] === blank ? r.slice(1) : r.slice(0, 7)).join("/");
+  }
+  return out;
+}
+const G5X7 = derive5x7(G5X8);
+
 const FONTS = [
   { id: "f3x5", name: "3x5", w: 3, h: 6, glyphs: G3X5,
     note: "Micro font at Tom Thumb proportions. The only one that clears a seven-row matrix." },
   { id: "f4x6", name: "4x6", w: 4, h: 6, glyphs: G4X6,
     note: "Small font with real lowercase and descenders, in the X11 misc-fixed idiom." },
+  { id: "f5x7", name: "5x7", w: 5, h: 7, glyphs: G5X7,
+    note: "The 5x8 shapes squeezed into seven rows, as a 5x7 character module renders them." },
   { id: "f5x8", name: "5x8", w: 5, h: 8, glyphs: G5X8,
     note: "The HD44780 A00 shapes the VFD controllers carry. Needs eight rows." },
 ];
@@ -720,6 +773,7 @@ function glyph(font, ch) {
   return bm;
 }
 const FONT_5X8 = FONT_BY_ID.f5x8;
+const FONT_5X7 = FONT_BY_ID.f5x7;
 
 /* ================================================================== *
  * Helpers
@@ -751,16 +805,18 @@ function geom(D) {
   if (D.kind === "vfd") {
     const charPitchX = D.charPitchX ?? (D.active.w - D.cell.w) / (D.cols - 1);
     const linePitchY = D.linePitchY ?? (D.active.h - D.cell.h) / (D.rows - 1);
+    const dotRows = D.dots?.h ?? 8;      // 5x7 modules exist alongside 5x8
     return {
       kind: D.kind, board: D.board, active: D.active, glass: D.glass, glassFill: "#0b100e",
       window: D.window, windowFill: "#050908", hole: D.hole,
-      pxCols: D.cols * 5, pxRows: D.rows * 8,
+      pxCols: D.cols * 5, pxRows: D.rows * dotRows,
       lens: { w: D.dot.w, h: D.dot.h, r: 0, rot: 0 },
       hitW: D.pitch.x, hitH: D.pitch.y, bloomUnit: D.pitch.y, uniform: false,
       charPitchX, linePitchY,
+      dotRows, marks: D.marks ?? null,
       centre: (px, py) => ({
         cx: D.active.x + Math.floor(px / 5) * charPitchX + (px % 5) * D.pitch.x + D.dot.w / 2,
-        cy: D.active.y + Math.floor(py / 8) * linePitchY + (py % 8) * D.pitch.y + D.dot.h / 2,
+        cy: D.active.y + Math.floor(py / dotRows) * linePitchY + (py % dotRows) * D.pitch.y + D.dot.h / 2,
       }),
     };
   }
@@ -871,7 +927,8 @@ function palette() {
 
 /* Character VFDs are hard-wired to their ROM; everything else picks a
    font and an integer scale, the way setTextSize() works in firmware. */
-const fontFor = (D) => (D.kind === "vfd" ? FONT_5X8 : FONT_BY_ID[D.font] ?? FONT_5X8);
+const fontFor = (D) =>
+  D.kind === "vfd" ? ((D.dots?.h ?? 8) === 7 ? FONT_5X7 : FONT_5X8) : FONT_BY_ID[D.font] ?? FONT_5X8;
 const scaleFor = (D) => (D.kind === "vfd" ? 1 : D.scale ?? 1);
 
 function capacityFor(D, G) {
@@ -885,8 +942,9 @@ const capacity = () => capacityFor(state.display, state.G);
 function baseBit(px, py) {
   const D = state.display;
   if (D.kind === "vfd") {
-    const ch = state.lines[Math.floor(py / 8)]?.[Math.floor(px / 5)] ?? " ";
-    return glyph(FONT_5X8, ch)[py % 8][px % 5];
+    const F = fontFor(D), rows = F.h;
+    const ch = state.lines[Math.floor(py / rows)]?.[Math.floor(px / 5)] ?? " ";
+    return glyph(F, ch)[py % rows][px % 5];
   }
   // Raw matrices: glyphs packed left to right with a one-pixel gap, line
   // 1 at the top and line 2 a glyph-height down when there is room.
@@ -985,6 +1043,20 @@ function buildStatic() {
         x: n(G.glass.x + G.window), y: n(G.glass.y + G.window),
         width: n(G.glass.w - G.window * 2), height: n(G.glass.h - G.window * 2), fill: G.windowFill,
       }));
+  }
+
+  // Triangle marks: one indicator per digit, part of the panel rather than
+  // the dot matrix, so they sit outside the pixel grid.
+  if (G.marks) {
+    const m = G.marks, layer = el("g", { id: "markLayer", fill: P.tight, "fill-opacity": "0.055" });
+    for (let c = 0; c < D.cols; c++) {
+      const cx = D.active.x + c * D.charPitchX + D.cell.w / 2;
+      const top = m.y + (m.h - m.w * 0.8) / 2, half = m.w / 2;
+      layer.appendChild(el("polygon", {
+        points: `${n(cx)},${n(top)} ${n(cx - half)},${n(top + m.w * 0.8)} ${n(cx + half)},${n(top + m.w * 0.8)}`,
+      }));
+    }
+    svg.appendChild(layer);
   }
 
   // LED block bodies — the seam between tiles is real, so it is drawn
@@ -1486,7 +1558,7 @@ function renderSpec() {
   rows.push(["Active area", `${round2(A.w)} × ${round2(A.h)}`]);
 
   if (D.kind === "vfd") {
-    rows.push(["Character cell", `${D.cell.w} × ${D.cell.h}`]);
+    rows.push(["Character cell", `${D.cell.w} × ${D.cell.h}, 5x${D.dots?.h ?? 8} dots`]);
     rows.push(["Char pitch", `${round2(G.charPitchX)} × ${round2(G.linePitchY)}`]);
     rows.push(["Dot", `${D.dot.w} × ${D.dot.h}`]);
     rows.push(["Dot pitch", `${D.pitch.x} × ${D.pitch.y}`]);
@@ -1513,7 +1585,9 @@ function renderSpec() {
   const F = fontFor(D), S = scaleFor(D);
   const cellH = F.h * S;
   const lines = Math.max(0, Math.min(2, Math.floor((G.pxRows + S) / ((F.h + 1) * S))));
-  rows.push(["Font", D.kind === "vfd" ? "5x8 character ROM" : `${F.name}${S > 1 ? " at " + S + "x" : ""}`]);
+  rows.push(["Font", D.kind === "vfd"
+    ? `${F.name} character ROM`
+    : `${F.name}${S > 1 ? " at " + S + "x" : ""}`]);
   rows.push(["Text capacity", `${capacityFor(D, G)} x ${lines} chars`]);
   if (D.kind !== "vfd" && cellH > G.pxRows)
     rows.push(["Too tall", `needs ${cellH} rows, has ${G.pxRows}`]);

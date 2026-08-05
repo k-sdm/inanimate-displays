@@ -9,15 +9,18 @@ file, or serve the directory.
 
 ## Modules
 
-### Character VFDs (Newhaven)
+### Character VFDs
 
-| | M0220MD-202MDAR1-3 | M0220SD-202SDAR1 | M0216MD-162MDBR2-J |
-|---|---|---|---|
-| Format | 20 × 2 | 20 × 2 | 16 × 2 |
-| PCB | 146 × 43 | 116 × 37 | 122 × 44 |
-| VFD glass | 130 × 33.5 | 96.9 × 25 | 108 × 31 |
-| Active area | 101.75 × 18.5 | 70.75 × 11.5 | 82.7 × 19 |
-| Character cell | 3.85 × 8.95 | 2.35 × 5.34 | 3.85 × 9.22 |
+| | M0220MD-202MDAR1-3 | M0220SD-202SDAR1 | M0216MD-162MDBR2-J | Futaba M202MD12BA |
+|---|---|---|---|---|
+| Format | 20 × 2, 5×8 | 20 × 2, 5×8 | 16 × 2, 5×8 | 20 × 2, **5×7** |
+| PCB | 146 × 43 | 116 × 37 | 122 × 44 | 190 × 64 |
+| Glass / display area | 130 × 33.5 | 96.9 × 25 | 108 × 31 | 146.1 × 29.0 |
+| Active area | 101.75 × 18.5 | 70.75 × 11.5 | 82.7 × 19 | 146.1 × 26.0 |
+| Character cell | 3.85 × 8.95 | 2.35 × 5.34 | 3.85 × 9.22 | 5.5 × 10.5 |
+
+The first three are Newhaven. The Futaba is much larger, is the only 5 × 7 part
+here, and carries a strip of 20 triangle indicator marks below the second row.
 
 ### Custom Charlieplexed LED Matrix
 
@@ -91,6 +94,11 @@ Things that are *not* on a datasheet at all, listed in-app per module:
 
 - **M0220SD dot size and pitch.** Never stated. Back-solved from the 5 × 8 cell
   at an assumed ~70% / ~78% fill.
+- **M202MD12BA dot size and pitch**, likewise, back-solved from its 5.5 × 10.5
+  cell at ~75% / ~80%. Its display area is centred along the 190 mm length,
+  which the sheet does not dimension, and its triangle marks are drawn below
+  the second row — the sheet addresses them by the second row's digit addresses
+  but never says which side of the text they sit on.
 - **CharliePlex LED pitch.** Adafruit publishes only the 51.0 × 23.0 × 3.0 mm
   board. 2.80 mm is derived from fitting 15 columns inside 51 mm, and it
   reproduces 51.0 × 23.0 exactly at 15 × 7. The package body, terminals and
@@ -108,13 +116,15 @@ block. Tiling compresses the seam rather than opening it up.
 
 ## Fonts
 
-Character VFDs are hard-wired to their controller's ROM, so they always render
-5 × 8. Everything else picks a font and an integer scale:
+Character VFDs are hard-wired to their controller's ROM — 5 × 8 for the
+Newhaven parts, 5 × 7 for the Futaba. Everything else picks a font and an
+integer scale:
 
 | | Cell | Rows needed | Notes |
 |---|---|---|---|
 | **3×5** | 3 × 6 | 6 | Tom Thumb proportions. The only font that clears a seven-row matrix. |
 | **4×6** | 4 × 6 | 6 | Real lowercase and descenders, X11 misc-fixed idiom. |
+| **5×7** | 5 × 7 | 7 | The 5 × 8 shapes squeezed into seven rows, as a 5 × 7 module renders them. |
 | **5×8** | 5 × 8 | 8 | The HD44780 A00 shapes the VFD controllers carry. |
 
 Each is full printable ASCII (0x20–0x7E, 95 glyphs) with a descender row, and
@@ -123,8 +133,10 @@ live in `G3X5`, `G4X6` and `G5X8` as rows of `#` and `.`, so a glyph can be
 fixed by eye without tooling.
 
 All three are drawn by hand rather than extracted from font files. The 5 × 8
-follows the HD44780 A00 ROM; the 3 × 5 and 4 × 6 follow the usual shapes for
-fonts of those sizes without being transcriptions of either. Three-pixel-wide
+follows the HD44780 A00 ROM and the 5 × 7 is derived from it — descending
+glyphs shift up a row to land inside seven, and `j` is redrawn by hand because
+its dot already occupies the top row. The 3 × 5 and 4 × 6 follow the usual
+shapes for fonts of those sizes without being transcriptions of anything. Three-pixel-wide
 capitals have inherent collisions — M against N in particular — which is a
 property of the size, not a bug to fix.
 
