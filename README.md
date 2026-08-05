@@ -1,7 +1,7 @@
 # inanimate-displays
 
-A playground for physical displays. Character VFDs, LED matrices and graphic
-LCDs drawn to true millimetre scale from their datasheets, with typed text,
+A playground for physical displays. Character VFDs, LED matrices and LCDs
+drawn to true millimetre scale from their datasheets, with typed text,
 per-pixel drawing, acrylic filters, and SVG export.
 
 Single self-contained `index.html`. No build step, no dependencies — open the
@@ -38,12 +38,20 @@ packages are visible whether or not they are powered.
 1.2" 8 × 8 blocks, 31.7 mm square, 3.0 mm dots on a 4.0 mm pitch. Tile as many
 as you like across and down. Square or round dots.
 
-### Futurlec BLUE128X64LCD
+### LCDs
 
-128 × 64 graphic LCD, white pixels on a blue LED backlight. Module 93.0 × 70.0,
-viewing area 62.0 × 33.0, dot 0.42 × 0.48. Negative mode, so the backlight is
-the background and pixels switch white — unlit pixels are the faint grid you can
-see on a real panel, not black.
+Both are negative mode: the backlight is the background and pixels switch
+white, so unlit pixels are the faint grid you can see on a real panel, not
+black.
+
+**Futurlec BLUE128X64LCD** — 128 × 64 graphic. Module 93.0 × 70.0, viewing area
+62.0 × 33.0, dot 0.42 × 0.48. A raw pixel grid with no character cells.
+
+**Crystalfontz CFAH4002A-TMI-JT** — 40 × 2 character, and the widest module
+here at 182 mm. Outline 182.0 × 33.5, viewing area 154.4 × 16.5, active area
+147.5 × 11.5, character 3.20 × 5.55 on a 3.70 × 5.95 pitch, dot 0.60 × 0.65 on
+0.65 × 0.70. Sitronix ST7066U, so its ROM is HD44780-compatible and the 5 × 8
+table applies directly. Character cells like a VFD, appearance like an LCD.
 
 All dimensions in mm. Every module renders at the same mm-per-pixel, so their
 real relative sizes are directly comparable.
@@ -79,8 +87,12 @@ drawings' own vector geometry.
 Every module's numbers close on themselves: the pixel grid reconstructs the
 stated active area exactly, and the active area sits inside the outline.
 
-Two datasheets contradict themselves, and in both cases the conflict is resolved
-in favour of the dimension that is geometrically possible:
+One datasheet needs nothing reconciled at all. Every number Crystalfontz
+publishes for the CFAH4002A closes on every other: 39 × 3.70 + 3.20 = 147.50,
+5.95 + 5.55 = 11.50, 4 × 0.65 + 0.60 = 3.20, and 7 × 0.70 + 0.65 = 5.55.
+
+Two others contradict themselves, and in both cases the conflict is resolved in
+favour of the dimension that is geometrically possible:
 
 - **M0216MD.** The panel table's "Character Pitch 3.85 × 8.03" cannot produce
   its own 82.7 mm display size. Measuring the drawing's 1280 dots gives
@@ -104,8 +116,12 @@ Things that are *not* on a datasheet at all, listed in-app per module:
   reproduces 51.0 × 23.0 exactly at 15 × 7. The package body, terminals and
   emitting window are sized from photographs.
 - **The LED blocks' carrier PCB**, a 3 mm margin around the tiled blocks.
-- **The LCD viewing area's position** on the module, drawn centred. On a real
-  part it usually sits slightly high, with the connector along the bottom.
+- **The graphic LCD's viewing area position** on its module, drawn centred. On a
+  real part it usually sits slightly high, with the connector along the bottom.
+  The CFAH4002A's viewing and active areas are also drawn centred, but there
+  both sets of published numbers agree on that.
+- **The CFAH4002A's mounting holes**, not published on the product page.
+  ø2.5 at 2.5 mm inset is assumed.
 - **The inner phosphor window inset** on the VFDs.
 - **All three glyph tables**, which are drawn by hand. See below.
 

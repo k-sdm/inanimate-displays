@@ -338,6 +338,34 @@ const DISPLAYS = [
     ],
   },
   {
+    kind: "charlcd", id: "cfah4002a", part: "Crystalfontz CFAH4002A-TMI-JT",
+    blurb: "LCD &middot; 40 x 2 &middot; white on blue",
+    cols: 40, rows: 2,
+    dots:   { w: 5, h: 8 },
+    board:  { w: 182.00, h: 33.50 },
+    hole:   { d: 2.50, inset: 2.50 },
+    glass:  { x: 13.80, y: 8.50, w: 154.40, h: 16.50 },   // viewing area, centred
+    window: 0,
+    active: { x: 17.25, y: 11.00, w: 147.50, h: 11.50 },
+    cell:   { w: 3.20, h: 5.55 },
+    dot:    { w: 0.60, h: 0.65 },
+    pitch:  { x: 0.65, y: 0.70 },
+    charPitchX: 3.70, linePitchY: 5.95,
+    backlight: "#1746cf",
+    emitter: "#ffffff",
+    coreMix: 0.10, bloomGain: 0.30, bloomPasses: 1,
+    colourNote: "White pixels on a blue STN, negative mode",
+    labels: { boardW: "182.0", boardH: "33.5", glassW: "154.4", glassH: "16.5",
+              activeW: "147.5", activeH: "11.5", offX: "17.25", offY: "11.0" },
+    notes: [
+      "Outline 182.0 x 33.5 x 13.6, viewing area 154.4 x 16.5, active area 147.5 x 11.5, character 3.20 x 5.55 on a 3.70 x 5.95 pitch, dot 0.60 x 0.65 on 0.65 x 0.70 — every one of them published.",
+      "This is the only datasheet here with nothing to reconcile. All four cross-checks close exactly: 39 x 3.70 + 3.20 = 147.50, 5.95 + 5.55 = 11.50, 4 x 0.65 + 0.60 = 3.20, and 7 x 0.70 + 0.65 = 5.55.",
+      "Viewing and active areas are both centred on the outline, which the product page does not state but which both sets of numbers agree on.",
+      "Mounting holes are not published on the product page; ø2.5 at 2.5 mm inset is assumed.",
+      "Sitronix ST7066U, so the character ROM is HD44780-compatible and the 5x8 table applies directly.",
+    ],
+  },
+  {
     kind: "lcd", id: "lcd12864", part: "Futurlec BLUE128X64LCD",
     blurb: "LCD &middot; 128 x 64 &middot; white on blue",
     cols: 128, rows: 64,
@@ -801,13 +829,19 @@ const darken = (h, k) => rgb2hex(hex2rgb(h).map((v) => v * (1 - k)));
 /* ================================================================== *
  * Geometry — every display reduced to a pixel grid plus dot placement
  * ================================================================== */
+/** Character modules place one glyph per cell with gaps; raw matrices do not. */
+const isChar = (D) => D.kind === "vfd" || D.kind === "charlcd";
+/** LCDs light pixels against a backlit background rather than a dark panel. */
+const isLcd = (D) => D.kind === "lcd" || D.kind === "charlcd";
+
 function geom(D) {
-  if (D.kind === "vfd") {
+  if (isChar(D)) {
     const charPitchX = D.charPitchX ?? (D.active.w - D.cell.w) / (D.cols - 1);
     const linePitchY = D.linePitchY ?? (D.active.h - D.cell.h) / (D.rows - 1);
     const dotRows = D.dots?.h ?? 8;      // 5x7 modules exist alongside 5x8
     return {
-      kind: D.kind, board: D.board, active: D.active, glass: D.glass, glassFill: "#0b100e",
+      kind: D.kind, board: D.board, active: D.active, glass: D.glass,
+      glassFill: D.backlight ?? "#0b100e", lcdLike: isLcd(D),
       window: D.window, windowFill: "#050908", hole: D.hole,
       pxCols: D.cols * 5, pxRows: D.rows * dotRows,
       lens: { w: D.dot.w, h: D.dot.h, r: 0, rot: 0 },
@@ -848,7 +882,7 @@ function geom(D) {
     const first = { x: glass.x + D.dot.w / 2, y: glass.y + D.dot.h / 2 };
     return {
       kind: D.kind, board: D.board, active: { x: glass.x, y: glass.y, w: D.va.w, h: D.va.h },
-      glass, glassFill: D.backlight, window: 0, hole: D.hole,
+      glass, glassFill: D.backlight, lcdLike: true, window: 0, hole: D.hole,
       pxCols: D.cols, pxRows: D.rows,
       lens: { w: D.dot.w, h: D.dot.h, r: 0, rot: 0 },
       hitW: pitchX, hitH: pitchY, bloomUnit: pitchY,
@@ -928,11 +962,11 @@ function palette() {
 /* Character VFDs are hard-wired to their ROM; everything else picks a
    font and an integer scale, the way setTextSize() works in firmware. */
 const fontFor = (D) =>
-  D.kind === "vfd" ? ((D.dots?.h ?? 8) === 7 ? FONT_5X7 : FONT_5X8) : FONT_BY_ID[D.font] ?? FONT_5X8;
-const scaleFor = (D) => (D.kind === "vfd" ? 1 : D.scale ?? 1);
+  isChar(D) ? ((D.dots?.h ?? 8) === 7 ? FONT_5X7 : FONT_5X8) : FONT_BY_ID[D.font] ?? FONT_5X8;
+const scaleFor = (D) => (isChar(D) ? 1 : D.scale ?? 1);
 
 function capacityFor(D, G) {
-  if (D.kind === "vfd") return D.cols;
+  if (isChar(D)) return D.cols;
   const F = fontFor(D), S = scaleFor(D);
   return Math.max(0, Math.floor((Math.floor(G.pxCols / S) + 1) / (F.w + 1)));
 }
@@ -941,7 +975,7 @@ const capacity = () => capacityFor(state.display, state.G);
 /** Does the typed text light this pixel, ignoring hand-drawn overrides? */
 function baseBit(px, py) {
   const D = state.display;
-  if (D.kind === "vfd") {
+  if (isChar(D)) {
     const F = fontFor(D), rows = F.h;
     const ch = state.lines[Math.floor(py / rows)]?.[Math.floor(px / 5)] ?? " ";
     return glyph(F, ch)[py % rows][px % 5];
@@ -1106,8 +1140,8 @@ function buildPackages(D, G, defs) {
 function buildGrid(P, G, defs) {
   // An unpowered LED die or an idle LCD pixel still catches light; an
   // unlit VFD dot does not.
-  const fill = G.pkg ? "#8ea0b8" : G.kind === "lcd" ? "#dce9ff" : P.tight;
-  const op = G.pkg ? 0.16 : G.kind === "lcd" ? 0.1 : 0.055;
+  const fill = G.pkg ? "#8ea0b8" : G.lcdLike ? "#dce9ff" : P.tight;
+  const op = G.pkg ? 0.16 : G.lcdLike ? 0.1 : 0.055;
   const attrs = { id: "gridLayer", fill, "fill-opacity": op };
 
   if (G.uniform) {
@@ -1227,9 +1261,9 @@ function renderDims() {
 
   // one cell of the matrix, called out
   const m = 0.25 * s;
-  const cellW = D.kind === "vfd" ? D.cell.w : G.pkg ? G.pkg.w : G.lens.w;
-  const cellH = D.kind === "vfd" ? D.cell.h : G.pkg ? G.pkg.h : G.lens.h;
-  const at = G.centre(Math.min(D.kind === "vfd" ? 10 : 2, G.pxCols - 1), 0);
+  const cellW = isChar(D) ? D.cell.w : G.pkg ? G.pkg.w : G.lens.w;
+  const cellH = isChar(D) ? D.cell.h : G.pkg ? G.pkg.h : G.lens.h;
+  const at = G.centre(Math.min(isChar(D) ? 10 : 2, G.pxCols - 1), 0);
   const bx = at.cx - cellW / 2, by = at.cy - cellH / 2;
   layer.appendChild(el("rect", {
     x: n(bx - m), y: n(by - m), width: n(cellW + m * 2), height: n(cellH + m * 2),
@@ -1543,21 +1577,22 @@ function renderSpec() {
   const D = state.display, G = geom(D);
   const B = G.board, A = G.active;
   const areaB = B.w * B.h, areaA = A.w * A.h;
-  const kindName = { vfd: "Character VFD", charlie: "Charlieplexed LED", blocks: "Tiled LED matrix", lcd: "Graphic LCD" };
+  const kindName = { vfd: "Character VFD", charlie: "Charlieplexed LED",
+                     blocks: "Tiled LED matrix", lcd: "Graphic LCD", charlcd: "Character LCD" };
 
   const rows = [
     ["Part", D.part],
     ["Type", kindName[D.kind]],
     ["Colour", D.colourNote],
     ["rule"],
-    [D.kind === "lcd" ? "Module outline" : "PCB outline", `${round2(B.w)} × ${round2(B.h)}`],
+    [isLcd(D) ? "Module outline" : "PCB outline", `${round2(B.w)} × ${round2(B.h)}`],
   ];
   if (D.kind === "vfd") rows.push(["VFD glass", `${G.glass.w} × ${G.glass.h}`]);
-  if (D.kind === "lcd") rows.push(["Viewing area", `${G.glass.w} × ${G.glass.h}`]);
+  if (isLcd(D) && G.glass) rows.push(["Viewing area", `${G.glass.w} × ${G.glass.h}`]);
   if (D.kind === "blocks") rows.push(["Blocks", `${D.blocksX} × ${D.blocksY} of ${D.block.size} mm`]);
   rows.push(["Active area", `${round2(A.w)} × ${round2(A.h)}`]);
 
-  if (D.kind === "vfd") {
+  if (isChar(D)) {
     rows.push(["Character cell", `${D.cell.w} × ${D.cell.h}, 5x${D.dots?.h ?? 8} dots`]);
     rows.push(["Char pitch", `${round2(G.charPitchX)} × ${round2(G.linePitchY)}`]);
     rows.push(["Dot", `${D.dot.w} × ${D.dot.h}`]);
@@ -1578,18 +1613,18 @@ function renderSpec() {
 
   rows.push(["Mounting holes", `4 × ø${G.hole.d}${D.holeSpan ? ", " + D.holeSpan : ""}`]);
   rows.push(["rule"]);
-  rows.push([D.kind === "lcd" ? "Module area" : "PCB area", `${areaB.toFixed(0)} mm²`]);
+  rows.push([isLcd(D) ? "Module area" : "PCB area", `${areaB.toFixed(0)} mm²`]);
   rows.push(["Active / outline", `${((areaA / areaB) * 100).toFixed(1)}%`]);
   rows.push(["Resolution", `${G.pxCols} × ${G.pxRows} dots`]);
   rows.push(["Total dots", `${(G.pxCols * G.pxRows).toLocaleString()}`]);
   const F = fontFor(D), S = scaleFor(D);
   const cellH = F.h * S;
   const lines = Math.max(0, Math.min(2, Math.floor((G.pxRows + S) / ((F.h + 1) * S))));
-  rows.push(["Font", D.kind === "vfd"
+  rows.push(["Font", isChar(D)
     ? `${F.name} character ROM`
     : `${F.name}${S > 1 ? " at " + S + "x" : ""}`]);
   rows.push(["Text capacity", `${capacityFor(D, G)} x ${lines} chars`]);
-  if (D.kind !== "vfd" && cellH > G.pxRows)
+  if (!isChar(D) && cellH > G.pxRows)
     rows.push(["Too tall", `needs ${cellH} rows, has ${G.pxRows}`]);
 
   const t = document.getElementById("spec");
@@ -1611,7 +1646,7 @@ function renderSpec() {
   const ul = document.getElementById("notes");
   ul.textContent = "";
   const notes = [...D.notes];
-  if (D.kind !== "vfd") notes.push(`${F.name}: ${F.note}`);
+  if (!isChar(D)) notes.push(`${F.name}: ${F.note}`);
   for (const note of notes) {
     const li = document.createElement("li");
     li.textContent = note;
