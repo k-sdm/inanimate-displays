@@ -75,6 +75,8 @@ real relative sizes are directly comparable.
 - **Configure** resolution, pitch, block count and dot shape on the LED modules.
 - **Filter** through Noritake's five standard acrylics, on the VFDs.
 - **Dimensions** overlays the datasheet callouts on the drawing.
+- **Side view** draws an elevation below the plan at the same mm scale, for the
+  modules with a published overall depth.
 - **Export SVG** writes the current state out unitless at **1 px = 1 mm**.
 
 ## Where the numbers come from
@@ -122,6 +124,15 @@ Things that are *not* on a datasheet at all, listed in-app per module:
   both sets of published numbers agree on that.
 - **The CFAH4002A's mounting holes**, not published on the product page.
   ø2.5 at 2.5 mm inset is assumed.
+- **Both LCD bezels.** The black frame between the outline and the window is
+  drawn 3.5 mm out on the CFAH4002A and 6 mm on the BLUE128X64LCD. Neither
+  datasheet dimensions the frame, only the outline and the window either side
+  of it.
+- **The side-view layer split.** Overall depth is published for every module
+  that has an elevation, but the division into a 1.6 mm board with the display
+  stack in front of it is not. The M0220SD has no elevation at all — its
+  drawing gives depth in pieces that do not obviously total, so nothing is
+  drawn rather than guessed.
 - **The inner phosphor window inset** on the VFDs.
 - **All three glyph tables**, which are drawn by hand. See below.
 

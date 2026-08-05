@@ -126,6 +126,7 @@
           <label><input type="checkbox" id="tGrid" checked /> Unlit dots</label>
           <label><input type="checkbox" id="tBloom" checked /> Bloom</label>
           <label><input type="checkbox" id="tScale" checked /> True relative size</label>
+          <label><input type="checkbox" id="tSide" /> Side view</label>
         </div>
         <div class="row" style="margin-top:14px">
           <button class="link primary" id="save">Export SVG</button>
@@ -192,6 +193,7 @@ const diag45 = (w, h) => (w + h) / SQRT2;
 const DISPLAYS = [
   {
     kind: "vfd", id: "m0220md", part: "M0220MD-202MDAR1-3",
+    depth: 9.80, pcbT: 1.60,
     blurb: "VFD &middot; 20 x 2 &middot; 3.85 x 8.95 mm char",
     cols: 20, rows: 2,
     board:  { w: 146.00, h: 43.00 },
@@ -234,10 +236,12 @@ const DISPLAYS = [
       "Char 2.35 x 5.34, char pitch 3.60 and line pitch 6.16 come from the general-specifications table, not the drawing.",
       "Dot size and dot pitch are the one thing this datasheet never states. They are back-solved from the 5x8 cell at an assumed ~70% / ~78% fill.",
       "Cross-checks that hold: 6.16 + 5.34 = 11.50 (the drawing's 11.5), (37 - 11.5) / 2 = 12.75, and 19 x 3.60 + 2.35 = 70.75.",
+      "The one module here with no side view: its drawing dimensions the depth in pieces that do not obviously add to an overall figure, so rather than guess, nothing is drawn.",
     ],
   },
   {
     kind: "vfd", id: "m0216md", part: "M0216MD-162MDBR2-J",
+    depth: 12.00, pcbT: 1.60,
     blurb: "VFD &middot; 16 x 2 &middot; 3.85 x 9.22 mm char",
     cols: 16, rows: 2,
     board:  { w: 122.00, h: 44.00 },
@@ -261,6 +265,7 @@ const DISPLAYS = [
   },
   {
     kind: "vfd", id: "m202md12ba", part: "Futaba M202MD12BA",
+    depth: 27.00, pcbT: 1.60,
     blurb: "VFD &middot; 20 x 2 &middot; 5.5 x 10.5 mm char, 5x7",
     cols: 20, rows: 2,
     dots:   { w: 5, h: 7 },              // 5x7 cell, not the 5x8 of the Newhaven parts
@@ -291,6 +296,7 @@ const DISPLAYS = [
   },
   {
     kind: "charlie", id: "charliewing", part: "Custom Charlieplexed LED Matrix",
+    depth: 3.00, pcbT: 1.60,
     blurb: "LED &middot; 15 x 7 &middot; chip LEDs at 45&deg;",
     cols: 15, rows: 7,
     // Native font is the 5x8, as it was for every panel here, but seven
@@ -320,6 +326,7 @@ const DISPLAYS = [
   },
   {
     kind: "blocks", id: "ledblocks", part: "Luckylight KWM-R30881XBB",
+    depth: 9.60, pcbT: 1.60,
     blurb: "LED &middot; 1.2\" 8x8 blocks &middot; tileable",
     blocksX: 2, blocksY: 1,
     nativeFont: "f5x8", font: "f5x8", scale: 1,
@@ -351,6 +358,8 @@ const DISPLAYS = [
     dot:    { w: 0.60, h: 0.65 },
     pitch:  { x: 0.65, y: 0.70 },
     charPitchX: 3.70, linePitchY: 5.95,
+    bezel: 3.50,                 // black frame around the window — estimated
+    depth: 13.60, pcbT: 1.60,
     backlight: "#1746cf",
     emitter: "#ffffff",
     coreMix: 0.10, bloomGain: 0.30, bloomPasses: 1,
@@ -363,6 +372,8 @@ const DISPLAYS = [
       "Viewing and active areas are both centred on the outline, which the product page does not state but which both sets of numbers agree on.",
       "Mounting holes are not published on the product page; ø2.5 at 2.5 mm inset is assumed.",
       "Sitronix ST7066U, so the character ROM is HD44780-compatible and the 5x8 table applies directly.",
+      "The black bezel is drawn 3.5 mm out from the window on each side. Crystalfontz publish the outline and the window but not the frame between them, so that margin is estimated.",
+      "Side view: overall depth 13.60 is published; the split into a 1.6 mm board with the display stack in front of it is not.",
     ],
   },
   {
@@ -373,6 +384,8 @@ const DISPLAYS = [
     board: { w: 93.00, h: 70.00 },
     va: { w: 62.00, h: 33.00 },
     dot: { w: 0.42, h: 0.48 },
+    bezel: 6.00,                 // black frame around the window — estimated
+    depth: 12.10, pcbT: 1.60,
     hole: { d: 2.50, inset: 2.50 },
     pcb: "#1b2028",
     backlight: "#1746cf",
@@ -387,6 +400,7 @@ const DISPLAYS = [
       "That table's \"Dot Pitch 0.52 x 0.52\" cannot be right: 128 x 0.52 is 66.56 mm, which will not fit a 62.0 mm viewing area. Pitch here is derived from the viewing area instead, giving 0.485 x 0.516 — close to the 0.48 x 0.52 this module family normally quotes.",
       "The datasheet never says where the viewing area sits on the module, so it is drawn centred. On a real part it usually sits slightly high, with the connector along the bottom.",
       "Negative-mode blue: the backlight is the background and pixels switch white. Unlit pixels are the faint grid you can see on a real panel, not black.",
+      "The black bezel is drawn 6 mm out from the window on each side — estimated, like the window's position. Overall depth 12.1 is published; the 1.6 mm board split in the side view is not.",
     ],
   },
 ];
@@ -834,6 +848,17 @@ const isChar = (D) => D.kind === "vfd" || D.kind === "charlcd";
 /** LCDs light pixels against a backlit background rather than a dark panel. */
 const isLcd = (D) => D.kind === "lcd" || D.kind === "charlcd";
 
+/** The black frame around an LCD window, clamped inside the outline. */
+function bezelRect(D, glass) {
+  if (!D.bezel || !glass) return null;
+  const b = D.bezel;
+  return {
+    x: Math.max(0, glass.x - b), y: Math.max(0, glass.y - b),
+    w: Math.min(D.board.w, glass.x + glass.w + b) - Math.max(0, glass.x - b),
+    h: Math.min(D.board.h, glass.y + glass.h + b) - Math.max(0, glass.y - b),
+  };
+}
+
 function geom(D) {
   if (isChar(D)) {
     const charPitchX = D.charPitchX ?? (D.active.w - D.cell.w) / (D.cols - 1);
@@ -842,7 +867,7 @@ function geom(D) {
     return {
       kind: D.kind, board: D.board, active: D.active, glass: D.glass,
       glassFill: D.backlight ?? "#0b100e", lcdLike: isLcd(D),
-      window: D.window, windowFill: "#050908", hole: D.hole,
+      bezel: bezelRect(D, D.glass), window: D.window, windowFill: "#050908", hole: D.hole,
       pxCols: D.cols * 5, pxRows: D.rows * dotRows,
       lens: { w: D.dot.w, h: D.dot.h, r: 0, rot: 0 },
       hitW: D.pitch.x, hitH: D.pitch.y, bloomUnit: D.pitch.y, uniform: false,
@@ -882,7 +907,8 @@ function geom(D) {
     const first = { x: glass.x + D.dot.w / 2, y: glass.y + D.dot.h / 2 };
     return {
       kind: D.kind, board: D.board, active: { x: glass.x, y: glass.y, w: D.va.w, h: D.va.h },
-      glass, glassFill: D.backlight, lcdLike: true, window: 0, hole: D.hole,
+      glass, glassFill: D.backlight, lcdLike: true, bezel: bezelRect(D, glass),
+      window: 0, hole: D.hole,
       pxCols: D.cols, pxRows: D.rows,
       lens: { w: D.dot.w, h: D.dot.h, r: 0, rot: 0 },
       hitW: pitchX, hitH: pitchY, bloomUnit: pitchY,
@@ -929,7 +955,7 @@ const state = {
   display: DISPLAYS[0],
   filter: FILTERS[0],
   lines: ["", ""],
-  dims: false, grid: true, bloom: true, trueScale: true,
+  dims: false, grid: true, bloom: true, trueScale: true, side: false,
   /** Per-module pixel overrides: displayId -> Map("py:px" -> boolean). */
   pixels: {},
   /** Per-module breathing pixels: displayId -> Map("py:px" -> phase 0..1). */
@@ -1043,7 +1069,7 @@ function buildStatic() {
   const PAD = padFor(G);
 
   svg.textContent = "";
-  svg.setAttribute("viewBox", `${n(-PAD)} ${n(-PAD)} ${n(G.board.w + PAD * 2)} ${n(G.board.h + PAD * 2)}`);
+  svg.setAttribute("viewBox", `${n(-PAD)} ${n(-PAD)} ${n(G.board.w + PAD * 2)} ${n(contentH(D, G) + PAD * 2)}`);
   scaler.style.width = state.trueScale ? `${((G.board.w + PAD * 2) / widest()) * 100}%` : "100%";
 
   const defs = el("defs");
@@ -1068,6 +1094,13 @@ function buildStatic() {
     for (const cx of [G.hole.inset, G.board.w - G.hole.inset])
       for (const cy of [G.hole.inset, G.board.h - G.hole.inset])
         svg.appendChild(el("circle", { cx: n(cx), cy: n(cy), r: G.hole.d / 2, fill: "#0a0c0b" }));
+
+  // The black frame the glass sits in — a separate part from the PCB,
+  // and on an LCD module the thing you actually see around the window.
+  if (G.bezel)
+    svg.appendChild(el("rect", {
+      x: n(G.bezel.x), y: n(G.bezel.y), width: n(G.bezel.w), height: n(G.bezel.h), fill: "#0a0c0f",
+    }));
 
   // VFD glass and phosphor window, or the LCD's backlit viewing area
   if (G.glass) {
@@ -1110,7 +1143,51 @@ function buildStatic() {
   svg.appendChild(el("g", { id: "bloomWide" }));
   svg.appendChild(el("g", { id: "bloomTight" }));
   svg.appendChild(el("g", { id: "litLayer" }));
+  if (state.side) drawSide(D, G);
   svg.appendChild(el("g", { id: "dimLayer" }));
+}
+
+/**
+ * Side elevation, drawn below the plan at the same mm scale. Two slabs:
+ * the PCB edge-on, and whatever stands proud of it. Only the overall
+ * depth is published for most of these, so the split is that depth less
+ * a 1.6 mm board rather than a layer-by-layer stack.
+ */
+function drawSide(D, G) {
+  const depth = D.depth;
+  if (!depth) return;
+  const pcbT = Math.min(D.pcbT ?? 1.6, depth);
+  const top = G.board.h + sideGap(G);
+  const g = el("g", { id: "sideLayer" });
+
+  // the part that stands proud: bezel, glass, or the LED block bodies
+  const front = G.bezel ?? G.glass ?? (G.blockRects
+    ? { x: G.blockRects[0].x, w: G.blockRects.length ? G.blockRects[G.blockRects.length - 1].x + G.blockRects[0].w - G.blockRects[0].x : 0 }
+    : null);
+  if (front && depth > pcbT)
+    g.appendChild(el("rect", {
+      x: n(front.x), y: n(top), width: n(front.w), height: n(depth - pcbT), fill: "#0a0c0f",
+    }));
+
+  // the board itself, edge-on at the back
+  g.appendChild(el("rect", {
+    x: 0, y: n(top + depth - pcbT), width: n(G.board.w), height: n(pcbT), fill: D.pcb ?? "#1a211e",
+  }));
+
+  // a sliver of emitter along the front face, so the lit side reads
+  if (front && depth > pcbT) {
+    const P = palette();
+    g.appendChild(el("rect", {
+      x: n((G.glass ?? front).x), y: n(top), width: n((G.glass ?? front).w),
+      height: n(Math.min(0.6, depth * 0.06)), fill: G.lcdLike ? G.glassFill : P.tight, opacity: 0.85,
+    }));
+  }
+  svg.appendChild(g);
+}
+const sideGap = (G) => G.board.h * 0.18;
+/** Total drawn height, which grows when the elevation is showing. */
+function contentH(D, G) {
+  return state.side && D.depth ? G.board.h + sideGap(G) + D.depth : G.board.h;
 }
 
 /**
@@ -1486,6 +1563,7 @@ toggle("tDims", "dims", renderDims);
 toggle("tGrid", "grid", applyLevels);
 toggle("tBloom", "bloom", renderText);
 toggle("tScale", "trueScale", redraw);
+toggle("tSide", "side", redraw);
 
 document.getElementById("clearText").addEventListener("click", () => {
   inputs.forEach((i) => (i.value = ""));
@@ -1554,7 +1632,7 @@ document.getElementById("reroll").addEventListener("click", () => {
 /* ---- SVG export: unitless, so 1 px = 1 mm ---- */
 document.getElementById("save").addEventListener("click", () => {
   const D = state.display, G = state.G, PAD = padFor(G);
-  const w = G.board.w + PAD * 2, h = G.board.h + PAD * 2;
+  const w = G.board.w + PAD * 2, h = contentH(D, G) + PAD * 2;
   const out = svg.cloneNode(true);
   out.setAttribute("xmlns", NS);
   out.setAttribute("width", n(w));
