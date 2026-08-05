@@ -48,10 +48,16 @@ black.
 62.0 × 33.0, dot 0.42 × 0.48. A raw pixel grid with no character cells.
 
 **Crystalfontz CFAH4002A-TMI-JT** — 40 × 2 character, and the widest module
-here at 182 mm. Outline 182.0 × 33.5, viewing area 154.4 × 16.5, active area
-147.5 × 11.5, character 3.20 × 5.55 on a 3.70 × 5.95 pitch, dot 0.60 × 0.65 on
-0.65 × 0.70. Sitronix ST7066U, so its ROM is HD44780-compatible and the 5 × 8
-table applies directly. Character cells like a VFD, appearance like an LCD.
+here at 182 mm. Outline 182.0 × 33.5, bezel 161.4 × 28.9, viewing area
+154.4 × 16.5, active area 147.5 × 11.5, character 3.20 × 5.55 on a 3.70 × 5.95
+pitch, dot 0.60 × 0.65 on 0.65 × 0.70. Sitronix ST7066U, so its ROM is
+HD44780-compatible and the 5 × 8 table applies directly. Character cells like a
+VFD, appearance like an LCD.
+
+Nothing on it is centred across the width — the LCD assembly sits about 2.5 mm
+right of centre to clear the 16-pin connector down the left edge. Every figure
+above, plus the mounting pattern and all three side-view layers, comes from
+Figure 1 of the datasheet.
 
 All dimensions in mm. Every module renders at the same mm-per-pixel, so their
 real relative sizes are directly comparable.
@@ -124,15 +130,16 @@ Things that are *not* on a datasheet at all, listed in-app per module:
   both sets of published numbers agree on that.
 - **The CFAH4002A's mounting holes**, not published on the product page.
   ø2.5 at 2.5 mm inset is assumed.
-- **Both LCD bezels.** The black frame between the outline and the window is
-  drawn 3.5 mm out on the CFAH4002A and 6 mm on the BLUE128X64LCD. Neither
-  datasheet dimensions the frame, only the outline and the window either side
-  of it.
-- **The side-view layer split.** Overall depth is published for every module
-  that has an elevation, but the division into a 1.6 mm board with the display
-  stack in front of it is not. The M0220SD has no elevation at all — its
-  drawing gives depth in pieces that do not obviously total, so nothing is
-  drawn rather than guessed.
+- **The BLUE128X64LCD's bezel**, drawn 6 mm out from the window. Futurlec give
+  the outline and the window but nothing in between. The CFAH4002A's bezel is
+  *not* a guess — it is dimensioned, and it is not a uniform border either:
+  3.45 to the sides of its window but 6.2 above and below.
+- **The side-view layer split**, except on the CFAH4002A where all three layers
+  are dimensioned (8.9 of LCD assembly, 1.6 of board, 3.1 of holder tab behind).
+  Elsewhere only overall depth is published and the split into a 1.6 mm board
+  plus the stack in front of it is a convention. The M0220SD has no elevation at
+  all — its drawing gives depth in pieces that do not obviously total, so
+  nothing is drawn rather than guessed.
 - **The inner phosphor window inset** on the VFDs.
 - **All three glyph tables**, which are drawn by hand. See below.
 

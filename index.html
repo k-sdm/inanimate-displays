@@ -350,30 +350,34 @@ const DISPLAYS = [
     cols: 40, rows: 2,
     dots:   { w: 5, h: 8 },
     board:  { w: 182.00, h: 33.50 },
-    hole:   { d: 2.50, inset: 2.50 },
-    glass:  { x: 13.80, y: 8.50, w: 154.40, h: 16.50 },   // viewing area, centred
+    hole:   { d: 3.50, inset: 3.50 },                      // 4-O3.5 PTH on 175.0 x 26.5
+    // The LCD assembly sits ~2.5 mm right of centre to clear the 16-pin
+    // connector down the left edge, so none of this is centred across.
+    glass:  { x: 16.30, y: 8.50, w: 154.40, h: 16.50 },    // viewing area
     window: 0,
-    active: { x: 17.25, y: 11.00, w: 147.50, h: 11.50 },
+    active: { x: 19.75, y: 11.00, w: 147.50, h: 11.50 },
     cell:   { w: 3.20, h: 5.55 },
     dot:    { w: 0.60, h: 0.65 },
     pitch:  { x: 0.65, y: 0.70 },
     charPitchX: 3.70, linePitchY: 5.95,
-    bezel: 3.50,                 // black frame around the window — estimated
-    depth: 13.60, pcbT: 1.60,
+    bezel: { x: 12.80, y: 2.30, w: 161.40, h: 28.90 },
+    // Every layer of the side view is dimensioned: 8.9 of LCD assembly in
+    // front, a 1.6 board, and the metal holder tabs behind it.
+    depth: 13.60, pcbT: 1.60, side: { front: 8.90, pcb: 1.60, rear: 3.10 },
     backlight: "#1746cf",
     emitter: "#ffffff",
     coreMix: 0.10, bloomGain: 0.30, bloomPasses: 1,
     colourNote: "White pixels on a blue STN, negative mode",
     labels: { boardW: "182.0", boardH: "33.5", glassW: "154.4", glassH: "16.5",
-              activeW: "147.5", activeH: "11.5", offX: "17.25", offY: "11.0" },
+              activeW: "147.5", activeH: "11.5", offX: "19.75", offY: "11.0" },
     notes: [
       "Outline 182.0 x 33.5 x 13.6, viewing area 154.4 x 16.5, active area 147.5 x 11.5, character 3.20 x 5.55 on a 3.70 x 5.95 pitch, dot 0.60 x 0.65 on 0.65 x 0.70 — every one of them published.",
       "This is the only datasheet here with nothing to reconcile. All four cross-checks close exactly: 39 x 3.70 + 3.20 = 147.50, 5.95 + 5.55 = 11.50, 4 x 0.65 + 0.60 = 3.20, and 7 x 0.70 + 0.65 = 5.55.",
-      "Viewing and active areas are both centred on the outline, which the product page does not state but which both sets of numbers agree on.",
-      "Mounting holes are not published on the product page; ø2.5 at 2.5 mm inset is assumed.",
+      "Nothing is centred across the width. Figure 1 of the datasheet puts the active area at 19.75 from the left edge, the viewing area at 16.3 and the bezel at 12.8 — the whole LCD assembly sits about 2.5 mm right of centre to clear the 16-pin connector down the left edge. All three are centred top to bottom.",
+      "Bezel 161.4 x 28.9 at 12.8, 2.3. Its frame is not a uniform border — 3.45 to the sides of the window but 6.2 above and below — which is why it reads far taller than a simple margin would draw it.",
+      "Mounting holes are 4-O3.5 PTH on a 175.0 x 26.5 pattern, so 3.5 in from every edge, with O5.5 pads.",
       "Sitronix ST7066U, so the character ROM is HD44780-compatible and the 5x8 table applies directly.",
-      "The black bezel is drawn 3.5 mm out from the window on each side. Crystalfontz publish the outline and the window but not the frame between them, so that margin is estimated.",
-      "Side view: overall depth 13.60 is published; the split into a 1.6 mm board with the display stack in front of it is not.",
+      "Side view is dimensioned rather than inferred: 8.9 of LCD assembly in front of a 1.6 board, 13.6 maximum overall, leaving 3.1 of metal holder tab behind.",
     ],
   },
   {
@@ -848,9 +852,14 @@ const isChar = (D) => D.kind === "vfd" || D.kind === "charlcd";
 /** LCDs light pixels against a backlit background rather than a dark panel. */
 const isLcd = (D) => D.kind === "lcd" || D.kind === "charlcd";
 
-/** The black frame around an LCD window, clamped inside the outline. */
+/**
+ * The black frame around an LCD window. Either an explicit rect measured
+ * off a drawing, or a uniform margin around the window where no drawing
+ * says otherwise. Clamped inside the outline either way.
+ */
 function bezelRect(D, glass) {
   if (!D.bezel || !glass) return null;
+  if (typeof D.bezel === "object") return D.bezel;
   const b = D.bezel;
   return {
     x: Math.max(0, glass.x - b), y: Math.max(0, glass.y - b),
@@ -1156,7 +1165,10 @@ function buildStatic() {
 function drawSide(D, G) {
   const depth = D.depth;
   if (!depth) return;
-  const pcbT = Math.min(D.pcbT ?? 1.6, depth);
+  const st = D.side;
+  const pcbT = Math.min(st?.pcb ?? D.pcbT ?? 1.6, depth);
+  const frontT = st?.front ?? depth - pcbT;
+  const rearT = st?.rear ?? 0;
   const top = G.board.h + sideGap(G);
   const g = el("g", { id: "sideLayer" });
 
@@ -1164,18 +1176,25 @@ function drawSide(D, G) {
   const front = G.bezel ?? G.glass ?? (G.blockRects
     ? { x: G.blockRects[0].x, w: G.blockRects.length ? G.blockRects[G.blockRects.length - 1].x + G.blockRects[0].w - G.blockRects[0].x : 0 }
     : null);
-  if (front && depth > pcbT)
+  if (front && frontT > 0)
     g.appendChild(el("rect", {
-      x: n(front.x), y: n(top), width: n(front.w), height: n(depth - pcbT), fill: "#0a0c0f",
+      x: n(front.x), y: n(top), width: n(front.w), height: n(frontT), fill: "#0a0c0f",
     }));
 
-  // the board itself, edge-on at the back
+  // the board itself, edge-on
   g.appendChild(el("rect", {
-    x: 0, y: n(top + depth - pcbT), width: n(G.board.w), height: n(pcbT), fill: D.pcb ?? "#1a211e",
+    x: 0, y: n(top + frontT), width: n(G.board.w), height: n(pcbT), fill: D.pcb ?? "#1a211e",
   }));
 
+  // whatever sits behind the board — holder tabs, components, connector
+  if (rearT > 0 && front)
+    g.appendChild(el("rect", {
+      x: n(front.x), y: n(top + frontT + pcbT), width: n(front.w), height: n(rearT),
+      fill: "#0a0c0f", opacity: 0.55,
+    }));
+
   // a sliver of emitter along the front face, so the lit side reads
-  if (front && depth > pcbT) {
+  if (front && frontT > 0) {
     const P = palette();
     g.appendChild(el("rect", {
       x: n((G.glass ?? front).x), y: n(top), width: n((G.glass ?? front).w),
