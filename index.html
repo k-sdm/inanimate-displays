@@ -381,6 +381,62 @@ const DISPLAYS = [
     ],
   },
   {
+    kind: "lcd", id: "erc12864_410", part: "EastRising ERC12864SBSF-4.10-S7",
+    blurb: "LCD &middot; 128 x 64 &middot; COG, touch option",
+    cols: 128, rows: 64,
+    board: { w: 47.40, h: 44.40 },
+    // Centred across the width, but pushed up the board: the driver bond
+    // and the FPC exit take the bottom of the module.
+    va:  { x: 2.80,   y: 10.10, w: 41.80,  h: 26.10 },
+    aa:  { x: 4.0605, y: 11.70, w: 39.279, h: 22.831 },
+    dot:   { w: 0.29,  h: 0.34 },
+    pitch: { x: 0.307, y: 0.357 },
+    hole: { d: 2.20, insetX: 2.00, insetY: 4.20 },   // 4-O2.2 on 43.40 x 36.00, O4.0 pads
+    depth: 4.60, pcbT: 1.60,
+    pcb: "#1b2028",
+    backlight: "#1746cf",
+    emitter: "#ffffff",
+    coreMix: 0.10, bloomGain: 0.30, bloomPasses: 1,
+    colourNote: "White pixels on a blue STN, negative mode",
+    labels: { boardW: "47.40", boardH: "44.40", glassW: "41.8", glassH: "26.1",
+              activeW: "39.279", activeH: "22.831", offX: "4.06", offY: "11.70" },
+    holeSpan: "43.40 x 36.00",
+    notes: [
+      "Outline 47.40 x 44.40 x 4.6, visual area 41.8 x 26.1, active area 39.279 x 22.831, dot 0.29 x 0.34 on a 0.307 x 0.357 pitch — all from the EastRising datasheet.",
+      "Both pitches reconstruct their span exactly: 127 x 0.307 + 0.29 = 39.279 and 63 x 0.357 + 0.34 = 22.831.",
+      "Centred across the width — the drawing's 2.00, 2.80 and 4.0605 offsets are symmetric — but not up and down. Measured from the FPC end the chain is 9.869 to the active area, then 22.831, leaving 11.70 at the far end, so the picture sits high on the board.",
+      "Mounting holes 4-O2.2 with O4.0 pads on a 43.40 x 36.00 pattern, so 2.00 in from the sides and 4.20 from the top and bottom.",
+      "The LCD glass outline is 29.5 tall but the drawing never gives its width, so no panel layer is drawn between the PCB and the window. On this part that leaves a lot of visible board, which is what the module actually looks like.",
+      "A touch panel is a factory option on this series and is not drawn; it would sit over the visual area.",
+    ],
+  },
+  {
+    kind: "lcd", id: "erc12864_7", part: "EastRising ERC12864SBSF-7",
+    blurb: "LCD &middot; 128 x 64 &middot; 2.9\" COG, SPI",
+    cols: 128, rows: 64,
+    board: { w: 84.00, h: 50.00 },
+    va: { w: 72.00, h: 39.00 },
+    aa: { w: 66.52, h: 33.24 },
+    dot:   { w: 0.48, h: 0.48 },
+    pitch: { x: 0.52, y: 0.52 },
+    bezel: { x: 4.00, y: 3.10, w: 76.00, h: 43.80 },   // the LCD glass itself
+    depth: 6.00, pcbT: 1.60,
+    pcb: "#1b2028",
+    backlight: "#1746cf",
+    emitter: "#ffffff",
+    coreMix: 0.10, bloomGain: 0.30, bloomPasses: 1,
+    colourNote: "White pixels on a blue STN, negative mode",
+    labels: { boardW: "84.00", boardH: "50.00", glassW: "72.00", glassH: "39.00",
+              activeW: "66.52", activeH: "33.24", offX: "8.74", offY: "8.38" },
+    notes: [
+      "Outline 84.00 x 50.00 x 6.0, visual area 72.00 x 39.00, active area 66.52 x 33.24, dot 0.48 square on a 0.52 pitch — all from the EastRising datasheet. 2.9 inches is the active-area diagonal, 74.4 mm.",
+      "The pitch reconstructs both spans exactly: 127 x 0.52 + 0.48 = 66.52 and 63 x 0.52 + 0.48 = 33.24.",
+      "The drawing's nested 84.00 / 76.00 / 72.00 / 66.52 and 50.00 / 43.80 / 42.30 / 39.00 chains are symmetric, so glass, window and dots are all drawn concentric. Measuring the drawing agrees to within about half a millimetre.",
+      "The dark layer between board and window is the 76.00 x 43.80 LCD glass, not a bezel — a COG module has no metal frame.",
+      "No mounting holes: it is held by its FPC and whatever bezel you build around it.",
+    ],
+  },
+  {
     kind: "lcd", id: "lcd12864", part: "Futurlec BLUE128X64LCD",
     blurb: "LCD &middot; 128 x 64 &middot; white on blue",
     cols: 128, rows: 64,
@@ -909,13 +965,19 @@ function geom(D) {
   }
 
   if (D.kind === "lcd") {
-    // The quoted pitch contradicts the quoted viewing area, so derive it.
-    const pitchX = (D.va.w - D.dot.w) / (D.cols - 1);
-    const pitchY = (D.va.h - D.dot.h) / (D.rows - 1);
-    const glass = { x: (D.board.w - D.va.w) / 2, y: (D.board.h - D.va.h) / 2, w: D.va.w, h: D.va.h };
-    const first = { x: glass.x + D.dot.w / 2, y: glass.y + D.dot.h / 2 };
+    // A rect without x/y is centred on the outline; parts whose drawing
+    // places it somewhere else carry its position.
+    const place = (r) => ({
+      x: r.x ?? (D.board.w - r.w) / 2, y: r.y ?? (D.board.h - r.h) / 2, w: r.w, h: r.h,
+    });
+    const glass = place(D.va);                       // visual area, the window
+    const active = place(D.aa ?? D.va);              // dots, smaller than the window
+    // Published pitch where there is one, otherwise derived from the span.
+    const pitchX = D.pitch?.x ?? (active.w - D.dot.w) / (D.cols - 1);
+    const pitchY = D.pitch?.y ?? (active.h - D.dot.h) / (D.rows - 1);
+    const first = { x: active.x + D.dot.w / 2, y: active.y + D.dot.h / 2 };
     return {
-      kind: D.kind, board: D.board, active: { x: glass.x, y: glass.y, w: D.va.w, h: D.va.h },
+      kind: D.kind, board: D.board, active,
       glass, glassFill: D.backlight, lcdLike: true, bezel: bezelRect(D, glass),
       window: 0, hole: D.hole,
       pxCols: D.cols, pxRows: D.rows,
@@ -1099,10 +1161,12 @@ function buildStatic() {
   // PCB / module body
   svg.appendChild(el("rect", { x: 0, y: 0, width: n(G.board.w), height: n(G.board.h), fill: D.pcb ?? "#1a211e" }));
 
-  if (G.hole)
-    for (const cx of [G.hole.inset, G.board.w - G.hole.inset])
-      for (const cy of [G.hole.inset, G.board.h - G.hole.inset])
+  if (G.hole) {
+    const ix = G.hole.insetX ?? G.hole.inset, iy = G.hole.insetY ?? G.hole.inset;
+    for (const cx of [ix, G.board.w - ix])
+      for (const cy of [iy, G.board.h - iy])
         svg.appendChild(el("circle", { cx: n(cx), cy: n(cy), r: G.hole.d / 2, fill: "#0a0c0b" }));
+  }
 
   // The black frame the glass sits in — a separate part from the PCB,
   // and on an LCD module the thing you actually see around the window.
@@ -1708,7 +1772,9 @@ function renderSpec() {
     rows.push(["LED pitch", `${D.block.pitch} in block, ${round2(D.block.size - 7 * D.block.pitch)} across seam`]);
   }
 
-  rows.push(["Mounting holes", `4 × ø${G.hole.d}${D.holeSpan ? ", " + D.holeSpan : ""}`]);
+  rows.push(["Mounting holes", G.hole
+    ? `4 × ø${G.hole.d}${D.holeSpan ? ", " + D.holeSpan : ""}`
+    : "none"]);
   rows.push(["rule"]);
   rows.push([isLcd(D) ? "Module area" : "PCB area", `${areaB.toFixed(0)} mm²`]);
   rows.push(["Active / outline", `${((areaA / areaB) * 100).toFixed(1)}%`]);

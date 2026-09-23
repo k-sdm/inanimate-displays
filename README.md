@@ -47,6 +47,17 @@ black.
 **Futurlec BLUE128X64LCD** — 128 × 64 graphic. Module 93.0 × 70.0, viewing area
 62.0 × 33.0, dot 0.42 × 0.48. A raw pixel grid with no character cells.
 
+**EastRising ERC12864SBSF-7** — 128 × 64 COG, 2.9″ on the active diagonal.
+Module 84.00 × 50.00 × 6.0, glass 76.00 × 43.80, visual area 72.00 × 39.00,
+active area 66.52 × 33.24, dot 0.48 square on a 0.52 pitch. ST7567, 4-wire SPI.
+No mounting holes — it is held by its FPC.
+
+**EastRising ERC12864SBSF-4.10-S7** — 128 × 64 COG, the smallest module here at
+47.40 × 44.40 × 4.6. Visual area 41.8 × 26.1, active area 39.279 × 22.831, dot
+0.29 × 0.34 on a 0.307 × 0.357 pitch — the finest dots in the set. ST7567S, with
+a touch panel available as a factory option. Centred across the width but
+pushed high up the board, since the driver bond and FPC exit take the bottom.
+
 **Crystalfontz CFAH4002A-TMI-JT** — 40 × 2 character, and the widest module
 here at 182 mm. Outline 182.0 × 33.5, bezel 161.4 × 28.9, viewing area
 154.4 × 16.5, active area 147.5 × 11.5, character 3.20 × 5.55 on a 3.70 × 5.95
@@ -95,9 +106,12 @@ drawings' own vector geometry.
 Every module's numbers close on themselves: the pixel grid reconstructs the
 stated active area exactly, and the active area sits inside the outline.
 
-One datasheet needs nothing reconciled at all. Every number Crystalfontz
+Three datasheets need nothing reconciled at all. Every number Crystalfontz
 publishes for the CFAH4002A closes on every other: 39 × 3.70 + 3.20 = 147.50,
-5.95 + 5.55 = 11.50, 4 × 0.65 + 0.60 = 3.20, and 7 × 0.70 + 0.65 = 5.55.
+5.95 + 5.55 = 11.50, 4 × 0.65 + 0.60 = 3.20, and 7 × 0.70 + 0.65 = 5.55. Both
+EastRising modules do the same: 127 × 0.52 + 0.48 = 66.52 and 63 × 0.52 + 0.48 =
+33.24 on the -7, and 127 × 0.307 + 0.29 = 39.279 with 63 × 0.357 + 0.34 = 22.831
+on the -4.10.
 
 Two others contradict themselves, and in both cases the conflict is resolved in
 favour of the dimension that is geometrically possible:
@@ -128,8 +142,13 @@ Things that are *not* on a datasheet at all, listed in-app per module:
   real part it usually sits slightly high, with the connector along the bottom.
   The CFAH4002A's viewing and active areas are also drawn centred, but there
   both sets of published numbers agree on that.
-- **The CFAH4002A's mounting holes**, not published on the product page.
-  ø2.5 at 2.5 mm inset is assumed.
+- **The ERC12864-7's layer positions.** Its drawing gives the nested 84.00 /
+  76.00 / 72.00 / 66.52 and 50.00 / 43.80 / 42.30 / 39.00 chains but no offsets.
+  They are symmetric, so glass, window and dots are drawn concentric, which
+  measuring the drawing agrees with to within about half a millimetre. The
+  -4.10's offsets *are* given, and it is not concentric vertically.
+- **The ERC12864-4.10's glass outline**, which the drawing dimensions in height
+  (29.5) but never in width, so no panel layer is drawn on that one.
 - **The BLUE128X64LCD's bezel**, drawn 6 mm out from the window. Futurlec give
   the outline and the window but nothing in between. The CFAH4002A's bezel is
   *not* a guess — it is dimensioned, and it is not a uniform border either:
