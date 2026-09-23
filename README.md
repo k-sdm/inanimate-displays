@@ -138,10 +138,10 @@ Things that are *not* on a datasheet at all, listed in-app per module:
   reproduces 51.0 × 23.0 exactly at 15 × 7. The package body, terminals and
   emitting window are sized from photographs.
 - **The LED blocks' carrier PCB**, a 3 mm margin around the tiled blocks.
-- **The graphic LCD's viewing area position** on its module, drawn centred. On a
-  real part it usually sits slightly high, with the connector along the bottom.
-  The CFAH4002A's viewing and active areas are also drawn centred, but there
-  both sets of published numbers agree on that.
+- **The BLUE128X64LCD's viewing area position** on its module, drawn centred. On
+  a real part it usually sits slightly high, with the connector along the
+  bottom. This is the one LCD here whose window position is still a guess — the
+  CFAH4002A and both EastRising modules are placed from their drawings.
 - **The ERC12864-7's layer positions.** Its drawing gives the nested 84.00 /
   76.00 / 72.00 / 66.52 and 50.00 / 43.80 / 42.30 / 39.00 chains but no offsets.
   They are symmetric, so glass, window and dots are drawn concentric, which
